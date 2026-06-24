@@ -120,6 +120,21 @@ fn apply_move(pos: &mut Position, from: Sq, to: Sq) -> Result<ActionOutcome, Ill
     pos.board[to.0 as usize] = Some(moving_piece);
     pos.board[from.0 as usize] = None;
 
+    // --- Populate toggle bitboards ---
+
+    // If this move was a capture, lock the destination square.
+    // The generation side gates on config.capture_lock; the bitboard is cleared every turn,
+    // so populating it unconditionally is always safe.
+    if captured.is_some() {
+        pos.turn.capture_locked.set(to);
+    }
+
+    // If the moved piece is a Keystone, record its new square.
+    // Unconditional: generation gates on config.keystone_single_move.
+    if moving_piece.kind == PieceKind::Keystone {
+        pos.turn.keystone_moved.set(to);
+    }
+
     // --- Decrement AP ---
 
     let cost = action_cost(&Action::Move { from, to });
@@ -964,6 +979,164 @@ mod tests {
         // The shield piece relocated successfully.
         assert!(pos.piece_at(sq(5, 6)).is_some(), "the shield moved");
         assert!(pos.piece_at(sq(4, 6)).is_none(), "the shield's old square is vacant");
+    }
+
+    // ---------------------------------------------------------------------------
+    // §7 toggle end-to-end tests (Task 12)
+    // ---------------------------------------------------------------------------
+
+    /// Returns true if any Move action in `actions` has `from` equal to `sq`.
+    fn has_move_from(actions: &[Action], sq: Sq) -> bool {
+        actions.iter().any(|a| matches!(a, Action::Move { from, .. } if *from == sq))
+    }
+
+    #[test]
+    fn capture_lock_on_blocks_second_move_of_capturing_piece() {
+        // ap=2, capture_lock=true. Piece X at (4,4) captures enemy Stone at (4,5).
+        // Turn continues (1 AP left). The capturing piece is now at (4,5) and must be locked.
+        let mut cfg = RuleConfig::default();
+        cfg.capture_lock = true;
+        let mut pos = empty_pos_with_ap(2);
+        pos.config = cfg;
+        // P1 Pillar (h2) is the mover -- h2 can step diagonally but we use ortho here.
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 1));
+        // Enemy Stone: simple target one step north.
+        place(&mut pos, 4, 5, Piece::new(Player::P2, PieceKind::Stone, 1));
+        // Keep P2 Keystone off board so capture does not end the game.
+        // Keep board free of any enemy Keystone so check rule does not fire.
+
+        let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 4), to: sq(4, 5) })
+            .expect("capture move must be legal");
+        assert!(!outcome.turn_ended, "1 AP must remain after capture");
+        assert_eq!(pos.turn.ap_remaining, 1);
+
+        let dest = sq(4, 5);
+        let actions = crate::actions::legal_actions(&pos);
+        assert!(
+            !has_move_from(&actions, dest),
+            "capture-locked piece must not appear as Move source when toggle is on"
+        );
+    }
+
+    #[test]
+    fn capture_lock_off_allows_chained_capture() {
+        // Same setup but capture_lock=false: the piece may move again.
+        let mut cfg = RuleConfig::default();
+        cfg.capture_lock = false;
+        let mut pos = empty_pos_with_ap(2);
+        pos.config = cfg;
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 1));
+        place(&mut pos, 4, 5, Piece::new(Player::P2, PieceKind::Stone, 1));
+
+        let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 4), to: sq(4, 5) })
+            .expect("capture move must be legal");
+        assert!(!outcome.turn_ended, "1 AP must remain");
+
+        let dest = sq(4, 5);
+        let actions = crate::actions::legal_actions(&pos);
+        assert!(
+            has_move_from(&actions, dest),
+            "toggle off: capturing piece must still be a legal Move source"
+        );
+    }
+
+    #[test]
+    fn keystone_single_move_on_blocks_second_keystone_move() {
+        // ap=2, keystone_single_move=true. Move a Keystone from (4,4) to (4,5).
+        // The Keystone is isolated; the move does not newly threaten any enemy Keystone.
+        let mut cfg = RuleConfig::default();
+        cfg.keystone_single_move = true;
+        let mut pos = empty_pos_with_ap(2);
+        pos.config = cfg;
+        // P1 Keystone at (4,4). Place it away from any enemy Keystone.
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Keystone, 1));
+        // No enemy pieces at all: no check can fire and no win can happen.
+
+        let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 4), to: sq(4, 5) })
+            .expect("keystone move must be legal");
+        assert!(!outcome.turn_ended, "1 AP must remain");
+
+        let dest = sq(4, 5);
+        let actions = crate::actions::legal_actions(&pos);
+        assert!(
+            !has_move_from(&actions, dest),
+            "moved keystone must not be a Move source when keystone_single_move is on"
+        );
+    }
+
+    #[test]
+    fn keystone_single_move_off_allows_two_keystone_moves() {
+        // Same setup but toggle off: the Keystone may move again.
+        let mut cfg = RuleConfig::default();
+        cfg.keystone_single_move = false;
+        let mut pos = empty_pos_with_ap(2);
+        pos.config = cfg;
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Keystone, 1));
+
+        let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 4), to: sq(4, 5) })
+            .expect("keystone move must be legal");
+        assert!(!outcome.turn_ended, "1 AP must remain");
+
+        let dest = sq(4, 5);
+        let actions = crate::actions::legal_actions(&pos);
+        assert!(
+            has_move_from(&actions, dest),
+            "toggle off: moved keystone must still be a legal Move source"
+        );
+    }
+
+    #[test]
+    fn first_turn_ap_one_forbids_stack_on_first_turn() {
+        // Build the standard position with first_turn_ap=1. P1's first turn has only 1 AP,
+        // so Stack (costs 2 AP) must not appear in legal_actions.
+        let mut cfg = RuleConfig::default();
+        cfg.first_turn_ap = 1;
+        let pos = crate::position::Position::new_standard(cfg);
+        assert_eq!(pos.turn.ap_remaining, 1, "precondition: ap=1 on first turn");
+        let actions = crate::actions::legal_actions(&pos);
+        let stacks: Vec<_> = actions.iter().filter(|a| matches!(a, Action::Stack { .. })).collect();
+        assert!(stacks.is_empty(), "first_turn_ap=1 must forbid Stack actions");
+    }
+
+    #[test]
+    fn spire_queen_toggle_changes_legal_targets() {
+        // A height-3 Spire at center (4,4). Dragon mode gives 20 targets; Queen gives 32.
+        // Assert the Queen set strictly contains the Dragon set and has more targets.
+        use crate::config::SpireMode;
+
+        let make_pos = |mode: SpireMode| -> crate::position::Position {
+            let mut cfg = RuleConfig::default();
+            cfg.spire = mode;
+            let mut pos = empty_pos_with_ap(2);
+            pos.config = cfg;
+            place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 3));
+            pos
+        };
+
+        let pos_dragon = make_pos(SpireMode::Dragon);
+        let pos_queen = make_pos(SpireMode::Queen);
+
+        let from = sq(4, 4);
+        let dragon_actions: Vec<_> = crate::actions::legal_actions(&pos_dragon)
+            .into_iter()
+            .filter(|a| matches!(a, Action::Move { from: f, .. } if *f == from))
+            .collect();
+        let queen_actions: Vec<_> = crate::actions::legal_actions(&pos_queen)
+            .into_iter()
+            .filter(|a| matches!(a, Action::Move { from: f, .. } if *f == from))
+            .collect();
+
+        // Dragon: 16 ortho + 4 diag steps = 20. Queen: 16 + 16 = 32.
+        assert_eq!(dragon_actions.len(), 20, "Dragon Spire at center must have 20 targets");
+        assert_eq!(queen_actions.len(), 32, "Queen Spire at center must have 32 targets");
+
+        // Every Dragon target must also be in Queen.
+        for a in &dragon_actions {
+            assert!(
+                queen_actions.contains(a),
+                "Queen must include all Dragon targets; missing {a:?}"
+            );
+        }
     }
 
     #[test]
