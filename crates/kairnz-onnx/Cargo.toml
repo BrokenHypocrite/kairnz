@@ -1,0 +1,11 @@
+[package]
+name = "kairnz-onnx"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kairnz-core = { path = "../kairnz-core" }
+kairnz-encode = { path = "../kairnz-encode" }
+kairnz-policy = { path = "../kairnz-policy" }
+ort = { version = "=2.0.0-rc.10", features = ["ndarray"] }
+ndarray = "0.16"
