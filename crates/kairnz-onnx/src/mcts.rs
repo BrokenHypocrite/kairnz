@@ -1,10 +1,13 @@
 //! Neural-guided PUCT Monte Carlo Tree Search over Kairnz positions.
 
+use std::path::Path;
+
 use kairnz_core::actions::{legal_actions, Action};
 use kairnz_core::game::Game;
 use kairnz_core::outcome::GameResult;
 use kairnz_core::piece::Player;
 use kairnz_encode::action_to_index;
+use kairnz_policy::policy::Policy;
 use rand::SeedableRng;
 use rand_distr::Distribution;
 use rand_pcg::Pcg64;
@@ -278,12 +281,45 @@ impl AzMcts {
     }
 }
 
+/// A `Policy` that plays the most-visited move from a neural PUCT search.
+pub struct AzMctsPolicy {
+    search: AzMcts,
+}
+
+impl AzMctsPolicy {
+    /// Builds a policy owning `evaluator`.
+    pub fn new(evaluator: OnnxEvaluator, config: AzMctsConfig, seed: u64) -> AzMctsPolicy {
+        AzMctsPolicy { search: AzMcts::new(evaluator, config, seed) }
+    }
+
+    /// Loads a model from `path` and builds a policy.
+    pub fn from_path(path: &Path, config: AzMctsConfig, seed: u64) -> ort::Result<AzMctsPolicy> {
+        Ok(AzMctsPolicy::new(OnnxEvaluator::from_path(path)?, config, seed))
+    }
+}
+
+impl Policy for AzMctsPolicy {
+    fn choose(&mut self, game: &Game) -> Option<Action> {
+        self.search
+            .search(game)
+            .into_iter()
+            .max_by_key(|(_, visits)| *visits)
+            .map(|(action, _)| action)
+    }
+
+    fn name(&self) -> &str {
+        "az-mcts"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use kairnz_core::config::RuleConfig;
     use kairnz_core::game::Game;
-    use kairnz_core::square::Sq;
+    use kairnz_core::piece::{Piece, PieceKind, Player};
+    use kairnz_core::position::{Position, TurnState};
+    use kairnz_core::square::{BitBoard81, NUM_SQUARES, Sq};
     use kairnz_encode::POLICY_SIZE;
     use std::path::PathBuf;
 
@@ -351,5 +387,75 @@ mod tests {
         let mut b = AzMcts::new(fixture_evaluator(), small_config(), 2);
         // dirichlet_epsilon is 0, so the seed is irrelevant: identical results.
         assert_eq!(a.search(&game), b.search(&game), "epsilon 0 search is deterministic");
+    }
+
+    fn sq(file: u8, rank: u8) -> kairnz_core::square::Sq {
+        kairnz_core::square::Sq::new(file, rank).expect("in bounds")
+    }
+
+    fn place(pos: &mut Position, file: u8, rank: u8, piece: Piece) {
+        pos.board[sq(file, rank).0 as usize] = Some(piece);
+    }
+
+    fn minimal_pos(to_move: Player, ap: u8) -> Position {
+        Position {
+            board: [None; NUM_SQUARES],
+            reserves: [0, 0],
+            to_move,
+            turn: TurnState {
+                ap_remaining: ap,
+                capture_locked: BitBoard81::default(),
+                keystone_moved: BitBoard81::default(),
+                enemy_checked_at_start: BitBoard81::default(),
+            },
+            config: RuleConfig::default(),
+            zobrist: 0,
+            ply: 0,
+        }
+    }
+
+    fn game_from_pos(pos: Position) -> Game {
+        let mut game = Game::new_standard(RuleConfig::default());
+        game.pos = pos;
+        game
+    }
+
+    #[test]
+    fn policy_chooses_a_legal_action_at_opening() {
+        let game = Game::new_standard(RuleConfig::default());
+        let legal = kairnz_core::actions::legal_actions(&game.pos);
+        let mut policy = AzMctsPolicy::new(fixture_evaluator(), small_config(), 1);
+        let action = policy.choose(&game).expect("opening has a move");
+        assert!(legal.contains(&action));
+    }
+
+    #[test]
+    fn policy_name_is_az_mcts() {
+        let policy = AzMctsPolicy::new(fixture_evaluator(), small_config(), 0);
+        assert_eq!(policy.name(), "az-mcts");
+    }
+
+    /// Sign-convention guard: with a winning keystone capture available, the
+    /// search must choose it. The capture creates a terminal child whose true
+    /// value (+1 for the capturing side) must back up to make that move the most
+    /// visited, even though the fixture network is random. A backprop or PUCT
+    /// sign error would steer the search away from the win.
+    #[test]
+    fn policy_prefers_an_immediate_winning_capture() {
+        let mut pos = minimal_pos(Player::P1, 2);
+        place(&mut pos, 4, 3, Piece::new(Player::P1, PieceKind::Stone, 2));
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Keystone, 1));
+        place(&mut pos, 0, 0, Piece::new(Player::P1, PieceKind::Keystone, 1));
+        place(&mut pos, 0, 8, Piece::new(Player::P1, PieceKind::Stone, 1));
+        pos.recompute_zobrist();
+
+        let winning = Action::Move { from: sq(4, 3), to: sq(4, 4) };
+        let game = game_from_pos(pos);
+        assert!(kairnz_core::actions::legal_actions(&game.pos).contains(&winning));
+
+        // Enough simulations for the terminal win signal to dominate the random net.
+        let config = AzMctsConfig { simulations: 256, ..AzMctsConfig::default() };
+        let mut policy = AzMctsPolicy::new(fixture_evaluator(), config, 7);
+        assert_eq!(policy.choose(&game), Some(winning), "must take the winning capture");
     }
 }

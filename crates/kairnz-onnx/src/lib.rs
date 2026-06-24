@@ -10,7 +10,7 @@ pub mod mcts;
 
 pub use evaluator::OnnxEvaluator;
 pub use policy::OnnxPolicy;
-pub use mcts::AzMctsConfig;
+pub use mcts::{AzMctsConfig, AzMctsPolicy};
 
 /// The execution backend a session is running on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
