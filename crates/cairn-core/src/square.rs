@@ -8,7 +8,7 @@ pub const NUM_SQUARES: usize = 81;
 const BOARD_MASK: u128 = (1u128 << NUM_SQUARES) - 1;
 
 /// A board square, stored as `file + rank * BOARD_SIZE` in `0..NUM_SQUARES`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Sq(pub u8);
 
 impl Sq {
