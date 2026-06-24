@@ -24,7 +24,7 @@ impl Player {
 }
 
 /// The kind of a piece on the board.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PieceKind {
     Stone,
     Keystone,
