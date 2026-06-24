@@ -4,6 +4,10 @@
 //! All values are produced in a canonical perspective oriented to the side to move.
 
 pub mod canonical;
+pub mod action_index;
+
+pub use action_index::{action_to_index, index_to_action};
+pub use canonical::canonical_sq;
 
 /// Number of 9x9 input planes produced for each position.
 pub const NUM_PLANES: usize = 14;
