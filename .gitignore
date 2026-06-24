@@ -3,3 +3,8 @@
 ui/node_modules
 ui/dist
 src-tauri/target
+
+# Python (train/)
+train/.venv/
+__pycache__/
+*.pyc
