@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/kairnz-core", "crates/kairnz-policy", "crates/kairnz-bench", "src-tauri"]
+members = ["crates/kairnz-core", "crates/kairnz-encode", "crates/kairnz-policy", "crates/kairnz-bench", "src-tauri"]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
