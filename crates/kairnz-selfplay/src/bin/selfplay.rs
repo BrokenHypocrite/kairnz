@@ -5,13 +5,10 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use kairnz_core::config::RuleConfig;
-use kairnz_onnx::mcts::AzMcts;
 use kairnz_onnx::OnnxEvaluator;
-use kairnz_selfplay::play::play_game;
+use kairnz_selfplay::parallel::parallel_self_play;
 use kairnz_selfplay::shard::write_shard;
 use kairnz_selfplay::SelfPlayConfig;
-use rand::SeedableRng;
-use rand_pcg::Pcg64;
 
 /// Command-line arguments for a self-play run.
 #[derive(Parser)]
@@ -32,6 +29,9 @@ struct Args {
     /// Base RNG seed.
     #[arg(long, default_value_t = 0)]
     seed: u64,
+    /// Worker threads (0 = auto-detect available parallelism).
+    #[arg(long, default_value_t = 0)]
+    threads: usize,
 }
 
 fn main() -> ExitCode {
@@ -42,24 +42,39 @@ fn main() -> ExitCode {
         ..SelfPlayConfig::default()
     };
 
-    let evaluator = match OnnxEvaluator::from_path(&args.model) {
-        Ok(e) => e,
+    let threads = if args.threads == 0 {
+        std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+    } else {
+        args.threads
+    };
+
+    // Load once just to report the execution backend.
+    match OnnxEvaluator::from_path(&args.model) {
+        Ok(evaluator) => {
+            println!("self-play backend: {:?}, threads: {threads}", evaluator.backend());
+        }
         Err(error) => {
             eprintln!("failed to load model: {error}");
             return ExitCode::FAILURE;
         }
-    };
-    println!("self-play backend: {:?}", evaluator.backend());
-
-    let mut mcts = AzMcts::new(evaluator, config.mcts_config(), args.seed);
-    let mut rng = Pcg64::seed_from_u64(args.seed);
-
-    let mut samples = Vec::new();
-    for g in 0..config.games {
-        let game_samples = play_game(&mut mcts, RuleConfig::default(), config.temperature_cutoff, &mut rng);
-        println!("game {g}: {} samples", game_samples.len());
-        samples.extend(game_samples);
     }
+
+    let samples = match parallel_self_play(
+        &args.model,
+        args.games,
+        threads,
+        config.mcts_config(),
+        RuleConfig::default(),
+        config.temperature_cutoff,
+        args.seed,
+    ) {
+        Ok(s) => s,
+        Err(error) => {
+            eprintln!("self-play failed: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    println!("played {} games on {threads} threads -> {} samples", args.games, samples.len());
 
     match write_shard(&samples, &args.out) {
         Ok(()) => {
