@@ -10,18 +10,17 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-import onnx
 import onnxruntime as ort
 import torch
 
 from kairnz_train.model import INPUT_PLANES, POLICY_SIZE, KairnzNet
+from kairnz_train.onnx_export import export_onnx
 
 # Small network keeps the committed fixture small; only the I/O contract matters here.
 FIXTURE_FILTERS = 8
 FIXTURE_BLOCKS = 1
 FIXTURE_POLICY_PLANES = 1
 SEED = 1234
-OPSET = 17
 BOARD = 9
 
 
@@ -33,27 +32,8 @@ def export(out_path: Path) -> None:
         blocks=FIXTURE_BLOCKS,
         policy_planes=FIXTURE_POLICY_PLANES,
     )
-    model.eval()
 
-    dummy = torch.zeros(1, INPUT_PLANES, BOARD, BOARD, dtype=torch.float32)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    torch.onnx.export(
-        model,
-        dummy,
-        str(out_path),
-        input_names=["planes"],
-        output_names=["policy", "value"],
-        dynamic_axes={
-            "planes": {0: "batch"},
-            "policy": {0: "batch"},
-            "value": {0: "batch"},
-        },
-        opset_version=OPSET,
-    )
-
-    # Structural validation.
-    onnx.checker.check_model(onnx.load(str(out_path)))
+    export_onnx(model, out_path)
 
     # Runtime validation: a batch of 2 exercises the dynamic batch axis.
     session = ort.InferenceSession(str(out_path), providers=["CPUExecutionProvider"])
