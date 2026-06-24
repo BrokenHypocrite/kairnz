@@ -1,9 +1,9 @@
 /**
  * Move-notation helpers for Cairn.
  */
-import type { Action } from './types.js';
+import type { Action, PieceView } from './types.js';
 
-/** Converts a square index to algebraic coordinate (e.g. 12 → "d2"). */
+/** Converts a square index to algebraic coordinate (e.g. 12 -> "d2"). */
 export function sqToCoord(sq: number): string {
   const file = sq % 9;
   const rank = Math.floor(sq / 9);
@@ -18,17 +18,36 @@ export interface NotationOpts {
 }
 
 /**
+ * Returns the single-letter piece code for a piece.
+ * Keystone -> "K"; by height: 1 -> "S", 2 -> "P", 3 -> "T".
+ */
+export function pieceCode(piece: PieceView, codes: { Stone: string; Pillar: string; Spire: string; Keystone: string }): string {
+  if (piece.kind === 'Keystone') return codes.Keystone;
+  if (piece.height >= 3) return codes.Spire;
+  if (piece.height === 2) return codes.Pillar;
+  return codes.Stone;
+}
+
+/**
  * Converts an Action to algebraic notation string.
- * Move: "<from>-<to>" or "<from>x<to>" if capture
+ * Move: "<code><from>-<to>" or "<code><from>x<to>" if capture
  * Place: "+<to>"
  * Stack: "^<target>"
  * Suffix "+" if checkEnd, "#" if gameOver.
+ *
+ * `movingPiece` must be the piece at `from` from the PRE-APPLY view (Move only).
  */
-export function actionToNotation(action: Action, opts: NotationOpts): string {
+export function actionToNotation(
+  action: Action,
+  opts: NotationOpts,
+  codes: { Stone: string; Pillar: string; Spire: string; Keystone: string },
+  movingPiece?: PieceView | null
+): string {
   let text: string;
   if ('Move' in action) {
     const sep = opts.capture ? 'x' : '-';
-    text = `${sqToCoord(action.Move.from)}${sep}${sqToCoord(action.Move.to)}`;
+    const code = movingPiece ? pieceCode(movingPiece, codes) : '';
+    text = `${code}${sqToCoord(action.Move.from)}${sep}${sqToCoord(action.Move.to)}`;
   } else if ('Place' in action) {
     text = `+${sqToCoord(action.Place.to)}`;
   } else {

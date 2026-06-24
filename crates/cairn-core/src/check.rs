@@ -46,6 +46,21 @@ pub fn checked_enemy_keystone_squares(pos: &Position, attacker: Player) -> BitBo
     result
 }
 
+/// Returns all Keystone squares (either player's) currently in check by the opponent.
+///
+/// P1-as-attacker gives P2's checked keystones; P2-as-attacker gives P1's.
+/// The union covers every keystone under threat regardless of owner.
+pub fn checked_keystone_squares(pos: &Position) -> Vec<Sq> {
+    let mut result = Vec::new();
+    for sq in checked_enemy_keystone_squares(pos, Player::P1).iter() {
+        result.push(sq);
+    }
+    for sq in checked_enemy_keystone_squares(pos, Player::P2).iter() {
+        result.push(sq);
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +160,23 @@ mod tests {
         place(&mut pos, 4, 5, Piece::new(Player::P2, PieceKind::Stone, 2));
 
         assert!(!is_in_check(&pos, ks_sq, Player::P1));
+    }
+
+    /// checked_keystone_squares returns the union of both players' threatened keystones.
+    #[test]
+    fn checked_keystone_squares_returns_union_of_both_sides() {
+        let mut pos = empty_pos();
+        // P2 Keystone in check from P1.
+        let p2_ks = Sq::new(4, 4).unwrap();
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Keystone, 1));
+        place(&mut pos, 4, 5, Piece::new(Player::P1, PieceKind::Stone, 2)); // threatens p2_ks
+
+        // P1 Keystone safe (no P2 attacker).
+        let p1_ks = Sq::new(0, 0).unwrap();
+        place(&mut pos, 0, 0, Piece::new(Player::P1, PieceKind::Keystone, 1));
+
+        let checked = checked_keystone_squares(&pos);
+        assert!(checked.contains(&p2_ks), "p2 keystone must be in checked list");
+        assert!(!checked.contains(&p1_ks), "safe p1 keystone must not be in checked list");
     }
 }

@@ -2,6 +2,7 @@ use cairn_core::apply::CapturedInfo;
 use cairn_core::game::Game;
 use cairn_core::outcome::GameResult;
 use cairn_core::piece::{PieceKind, Player};
+use cairn_core::square::Sq;
 use serde::Serialize;
 
 /// A piece as seen by the UI.
@@ -30,6 +31,8 @@ pub struct GameView {
     pub ap_remaining: u8,
     /// Terminal result, or `None` while the game is still in progress.
     pub result: Option<GameResult>,
+    /// Square indices of all Keystones (either player's) currently in check.
+    pub checked_keystones: Vec<Sq>,
 }
 
 /// The result of applying an action, returned to the UI.
@@ -67,5 +70,6 @@ pub fn view_of(game: &Game) -> GameView {
         to_move: pos.to_move,
         ap_remaining: pos.turn.ap_remaining,
         result: game.terminal_result(),
+        checked_keystones: cairn_core::check::checked_keystone_squares(&game.pos),
     }
 }

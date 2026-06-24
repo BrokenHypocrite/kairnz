@@ -29,6 +29,7 @@
     stackable?: Sq[];
     placeTargets?: Sq[];
     pendingPlace?: boolean;
+    checkedKeystones?: number[];
     onSquareClick?: (sq: Sq) => void;
   }
 
@@ -39,6 +40,7 @@
     stackable = [],
     placeTargets = [],
     pendingPlace = false,
+    checkedKeystones = [],
     onSquareClick,
   }: Props = $props();
 
@@ -91,6 +93,7 @@
   const legalSet = $derived(new Set(legalTargets));
   const stackableSet = $derived(new Set(stackable));
   const placeSet = $derived(new Set(placeTargets));
+  const checkSet = $derived(new Set(checkedKeystones));
 
   function handleCellClick(sq: Sq) {
     onSquareClick?.(sq);
@@ -156,6 +159,21 @@
           width={CELL - 6}
           height={CELL - 6}
           class="stack-ring"
+          pointer-events="none"
+        />
+      {/if}
+    {/each}
+
+    <!-- Check highlight rings for keystones in check -->
+    {#each squares as i}
+      {#if checkSet.has(i)}
+        {@const pos = cellPos(i)}
+        <rect
+          x={pos.x + 2}
+          y={pos.y + 2}
+          width={CELL - 4}
+          height={CELL - 4}
+          class="check-ring"
           pointer-events="none"
         />
       {/if}
@@ -288,6 +306,13 @@
     stroke: #cc8800;
     stroke-width: 2.5;
     stroke-dasharray: 6 3;
+    rx: 2;
+  }
+
+  .check-ring {
+    fill: none;
+    stroke: var(--check, #cc2200);
+    stroke-width: 3;
     rx: 2;
   }
 

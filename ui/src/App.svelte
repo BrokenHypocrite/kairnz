@@ -8,7 +8,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import MoveHistory from './components/MoveHistory.svelte';
   import { names } from './lib/names.js';
-  import { actionToNotation } from './lib/notation.js';
+  import { actionToNotation, sqToCoord } from './lib/notation.js';
 
   // ---------------------------------------------------------------------------
   // Core state
@@ -71,6 +71,23 @@
 
   const gameOver = $derived(view !== null && view.result !== null);
 
+  /** Keystone squares belonging to the side to move that are currently in check. */
+  const myCheckedKeystones = $derived(
+    view !== null
+      ? view.checked_keystones.filter((sq) => {
+          const pc = view!.board[sq];
+          return pc !== null && pc.owner === view!.to_move;
+        })
+      : []
+  );
+
+  /** Alert text shown at turn start when the current player's keystones are in check. */
+  const checkAlert = $derived(
+    myCheckedKeystones.length > 0 && !gameOver
+      ? `Check! Your Keystone${myCheckedKeystones.length > 1 ? 's' : ''} at ${myCheckedKeystones.map(sqToCoord).join(', ')} ${myCheckedKeystones.length > 1 ? 'are' : 'is'} threatened.`
+      : null
+  );
+
   // ---------------------------------------------------------------------------
   // Helpers: action membership guards
   // ---------------------------------------------------------------------------
@@ -115,16 +132,23 @@
     banner = null;
     try {
       const mover: Player = view!.to_move;
+      // Capture the moving piece BEFORE applying (engine moves it; code needed pre-apply).
+      const movingPiece = 'Move' in action ? (view!.board[action.Move.from] ?? null) : null;
       const result = await applyAction(id, action);
       if (result.turn_ended_on_check) {
         banner = names.check_banner;
       }
       plyCounter += 1;
-      const notation = actionToNotation(action, {
-        capture: result.last_capture !== null,
-        checkEnd: result.turn_ended_on_check,
-        gameOver: result.result !== null,
-      });
+      const notation = actionToNotation(
+        action,
+        {
+          capture: result.last_capture !== null,
+          checkEnd: result.turn_ended_on_check,
+          gameOver: result.result !== null,
+        },
+        names.piece_codes,
+        movingPiece
+      );
       history = [...history, { ply: plyCounter, player: mover, text: notation }];
       await refreshAfterAction(result.view, id, true);
     } catch (e) {
@@ -281,6 +305,10 @@
           {/if}
         </div>
 
+        {#if checkAlert}
+          <div class="check-alert" role="alert">{checkAlert}</div>
+        {/if}
+
         <Board
           {view}
           selectedSq={selected}
@@ -288,6 +316,7 @@
           stackable={stackableSquares}
           placeTargets={placeTargets}
           pendingPlace={pendingPlace}
+          checkedKeystones={view.checked_keystones}
           onSquareClick={handleSquareClick}
         />
       {:else}
@@ -313,11 +342,12 @@
     --board-dark: #b58863;
     --board-border: #5a3e28;
     --grid-line: #5a3e2855;
-    --piece-p1: #e8d5a3;
-    --piece-p2: #8b4513;
+    --piece-p1: #1a1a1a;
+    --piece-p2: #f5f0e8;
     --piece-stroke: #2a2a2a;
     --piece-stroke-w: 1px;
     --coord: #5a3e28;
+    --check: #cc2200;
   }
 
   main {
@@ -385,5 +415,15 @@
   .loading {
     margin: 0;
     color: #666;
+  }
+
+  .check-alert {
+    background: #ffeaea;
+    border: 2px solid var(--check);
+    border-radius: 4px;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--check);
   }
 </style>

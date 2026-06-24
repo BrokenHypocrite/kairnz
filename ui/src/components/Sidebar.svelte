@@ -18,14 +18,16 @@
   let { view, banner, onUndo, gameOver }: Props = $props();
 
   const toMoveLabel = $derived(
-    view.to_move === 'P1' ? names.players.P1 : names.players.P2
+    view.to_move === 'P1'
+      ? `${names.side_symbols.P1} ${names.players.P1}`
+      : `${names.side_symbols.P2} ${names.players.P2}`
   );
 
   const resultLabel = $derived(
     !view.result
       ? null
       : 'Win' in view.result
-        ? `${view.result.Win === 'P1' ? names.players.P1 : names.players.P2} wins!`
+        ? `${view.result.Win === 'P1' ? names.side_symbols.P1 : names.side_symbols.P2} ${view.result.Win === 'P1' ? names.players.P1 : names.players.P2} wins!`
         : 'Draw' in view.result
           ? `Draw: ${names.draw_reasons[view.result.Draw]}`
           : null
@@ -46,11 +48,11 @@
 
   <div class="section reserves">
     <div class="reserve-row">
-      <span class="reserve-label">{names.players.P1} reserve:</span>
+      <span class="reserve-label">{names.side_symbols.P1} {names.players.P1} reserve:</span>
       <span class="reserve-count">{view.reserves[0]}</span>
     </div>
     <div class="reserve-row">
-      <span class="reserve-label">{names.players.P2} reserve:</span>
+      <span class="reserve-label">{names.side_symbols.P2} {names.players.P2} reserve:</span>
       <span class="reserve-count">{view.reserves[1]}</span>
     </div>
   </div>

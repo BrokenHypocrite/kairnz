@@ -24,9 +24,14 @@
   <h2 class="panel-title">History</h2>
 
   <div class="legend">
+    <span title="Stone">S stone</span>
+    <span title="Pillar">P pillar</span>
+    <span title="Spire">T spire</span>
+    <span title="Keystone">K keystone</span>
     <span title="move">- move</span>
     <span title="capture">x capture</span>
-    <span title="place">+ place / check</span>
+    <span title="place">+ place</span>
+    <span title="check end">+ check</span>
     <span title="stack">^ stack</span>
     <span title="game over"># win</span>
   </div>
@@ -38,7 +43,7 @@
       {#each history as entry (entry.ply)}
         <div class="entry" class:p1={entry.player === 'P1'} class:p2={entry.player === 'P2'}>
           <span class="ply">{entry.ply}.</span>
-          <span class="player-label">{entry.player === 'P1' ? names.players.P1 : names.players.P2}</span>
+          <span class="player-label">{entry.player === 'P1' ? names.side_symbols.P1 : names.side_symbols.P2}</span>
           <span class="notation">{entry.text}</span>
         </div>
       {/each}

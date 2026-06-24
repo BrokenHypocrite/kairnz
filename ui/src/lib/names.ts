@@ -26,6 +26,16 @@ export interface Names {
     Repetition: string;
   };
   check_banner: string;
+  side_symbols: {
+    P1: string;
+    P2: string;
+  };
+  piece_codes: {
+    Stone: string;
+    Pillar: string;
+    Spire: string;
+    Keystone: string;
+  };
 }
 
 export const names = raw as unknown as Names;

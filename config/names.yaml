@@ -14,3 +14,11 @@ draw_reasons:
   MaxPlies: move limit reached
   Repetition: repetition
 check_banner: "Turn ended: that action put an enemy Keystone in check."
+side_symbols:
+  P1: "●"
+  P2: "○"
+piece_codes:
+  Stone: "S"
+  Pillar: "P"
+  Spire: "T"
+  Keystone: "K"

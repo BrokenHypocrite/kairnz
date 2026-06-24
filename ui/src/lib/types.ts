@@ -59,6 +59,8 @@ export interface GameView {
   to_move: Player;
   ap_remaining: number;
   result: GameResult | null;
+  /** Square indices (0..80) of all Keystones currently in check. */
+  checked_keystones: number[];
 }
 
 /** Info about a captured piece returned in ApplyResult. */
