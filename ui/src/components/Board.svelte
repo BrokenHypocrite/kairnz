@@ -49,6 +49,13 @@
   /** Total SVG canvas size. */
   const BOARD_SIZE = GRID * CELL;
 
+  /** Margin for coordinate labels (left and bottom). */
+  const LABEL_MARGIN = 20;
+
+  /** Arrays for label rendering. */
+  const files = Array.from({ length: GRID }, (_, i) => i);
+  const ranks = Array.from({ length: GRID }, (_, i) => i);
+
   /** Indices for all 81 squares. */
   const squares = Array.from({ length: GRID * GRID }, (_, i) => i);
 
@@ -92,9 +99,9 @@
 
 <div class="board-wrapper">
   <svg
-    width={BOARD_SIZE}
-    height={BOARD_SIZE}
-    viewBox="0 0 {BOARD_SIZE} {BOARD_SIZE}"
+    width={BOARD_SIZE + LABEL_MARGIN}
+    height={BOARD_SIZE + LABEL_MARGIN}
+    viewBox="{-LABEL_MARGIN} 0 {BOARD_SIZE + LABEL_MARGIN} {BOARD_SIZE + LABEL_MARGIN}"
     class="board-svg"
     role="img"
     aria-label="Cairn game board"
@@ -199,6 +206,28 @@
         <Piece {piece} cellSize={CELL} />
       </g>
     {/each}
+
+    <!-- File labels (a..i) along the bottom -->
+    {#each files as file}
+      <text
+        x={file * CELL + CELL / 2}
+        y={BOARD_SIZE + LABEL_MARGIN * 0.7}
+        class="coord-label"
+        text-anchor="middle"
+        dominant-baseline="middle"
+      >{String.fromCharCode(97 + file)}</text>
+    {/each}
+
+    <!-- Rank labels (1..9) along the left, 1 at bottom matching y-inversion -->
+    {#each ranks as rank}
+      <text
+        x={-LABEL_MARGIN * 0.65}
+        y={(GRID - 1 - rank) * CELL + CELL / 2 + 5}
+        class="coord-label"
+        text-anchor="middle"
+        dominant-baseline="middle"
+      >{rank + 1}</text>
+    {/each}
   </svg>
 </div>
 
@@ -260,5 +289,13 @@
     stroke-width: 2.5;
     stroke-dasharray: 6 3;
     rx: 2;
+  }
+
+  .coord-label {
+    fill: var(--coord);
+    font-size: 11px;
+    font-family: sans-serif;
+    pointer-events: none;
+    user-select: none;
   }
 </style>

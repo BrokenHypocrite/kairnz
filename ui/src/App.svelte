@@ -2,11 +2,13 @@
   import { onMount } from 'svelte';
   import { newGame, legalActions, applyAction, undo } from './lib/api.js';
   import { defaultConfig } from './lib/types.js';
-  import type { Action, GameId, GameView, RuleConfig, Sq } from './lib/types.js';
+  import type { Action, GameId, GameView, Player, RuleConfig, Sq } from './lib/types.js';
   import Board from './components/Board.svelte';
   import ConfigPanel from './components/ConfigPanel.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import MoveHistory from './components/MoveHistory.svelte';
   import { names } from './lib/names.js';
+  import { actionToNotation } from './lib/notation.js';
 
   // ---------------------------------------------------------------------------
   // Core state
@@ -21,6 +23,13 @@
   let config = $state<RuleConfig>({ ...defaultConfig });
   let error = $state<string | null>(null);
   let busy = $state(false);
+
+  // ---------------------------------------------------------------------------
+  // Move history
+  // ---------------------------------------------------------------------------
+  interface HistoryEntry { ply: number; player: Player; text: string; }
+  let history = $state<HistoryEntry[]>([]);
+  let plyCounter = $state(0);
 
   // ---------------------------------------------------------------------------
   // Affordance derivation -- all membership checks run against `legal`
@@ -105,10 +114,18 @@
     busy = true;
     banner = null;
     try {
+      const mover: Player = view!.to_move;
       const result = await applyAction(id, action);
       if (result.turn_ended_on_check) {
         banner = names.check_banner;
       }
+      plyCounter += 1;
+      const notation = actionToNotation(action, {
+        capture: result.last_capture !== null,
+        checkEnd: result.turn_ended_on_check,
+        gameOver: result.result !== null,
+      });
+      history = [...history, { ply: plyCounter, player: mover, text: notation }];
       await refreshAfterAction(result.view, id, true);
     } catch (e) {
       error = String(e);
@@ -187,6 +204,8 @@
       view = newView;
       selected = null;
       pendingPlace = false;
+      if (history.length > 0) history = history.slice(0, -1);
+      if (plyCounter > 0) plyCounter -= 1;
     } catch (e) {
       error = String(e);
     } finally {
@@ -204,6 +223,8 @@
     error = null;
     selected = null;
     pendingPlace = false;
+    history = [];
+    plyCounter = 0;
     try {
       const [id, initialView] = await newGame(cfg);
       gameId = id;
@@ -281,6 +302,7 @@
         onUndo={handleUndo}
         gameOver={gameOver}
       />
+      <MoveHistory {history} />
     {/if}
   </div>
 </main>
@@ -295,6 +317,7 @@
     --piece-p2: #8b4513;
     --piece-stroke: #2a2a2a;
     --piece-stroke-w: 1px;
+    --coord: #5a3e28;
   }
 
   main {

@@ -90,9 +90,9 @@ export interface RuleConfig {
 /** Default rule config matching Rust RuleConfig::default(). */
 export const defaultConfig: RuleConfig = {
   spire: 'Dragon',
-  first_turn_ap: 2,
-  capture_lock: false,
-  keystone_single_move: false,
+  first_turn_ap: 1,
+  capture_lock: true,
+  keystone_single_move: true,
   max_plies: 400,
   repetition_fold: 3,
 };

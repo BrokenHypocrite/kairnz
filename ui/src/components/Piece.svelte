@@ -61,26 +61,30 @@
   }
 
   /**
-   * Keystone path: a downward-biased diamond with a rectangular notch
-   * cut into the FRONT (top, pointing upward) to form a distinct silhouette.
-   * Orientation is still rotated 180 for P2.
+   * Keystone path: an architectural keystone shape -- a trapezoid wider at
+   * the base and narrower at the top (owner-facing front). The flat narrow top
+   * clearly distinguishes direction from the Stone's pointed apex.
+   * A center dot rendered separately marks it as the Keystone piece.
+   *
+   * Centered at (0,0): extends from y=top (front, narrow) to y=base (wide).
+   *       flat top: half-width = w * 0.22
+   *       base: half-width = w / 2
+   * Slight shoulder indent at mid-height for visual interest.
    */
   function keystonePath(w: number, h: number): string {
     const halfW = w / 2;
-    const top = -h * 0.55;
+    const top = -h * 0.48;
     const base = h * 0.45;
-    const notchW = w * 0.18;
-    const notchD = h * 0.18;  // notch depth from apex
-    // Diamond with a rectangular notch at the top (apex)
+    const topHalf = w * 0.22;
+    const midY = (top + base) * 0.35;
+    const midW = halfW * 0.82;
     return [
-      `M 0 ${top}`,
-      `L ${-notchW} ${top + notchD}`,
-      `L ${-halfW * 0.5} ${top + notchD}`,
-      `L ${-halfW} 0`,
-      `L 0 ${base}`,
-      `L ${halfW} 0`,
-      `L ${halfW * 0.5} ${top + notchD}`,
-      `L ${notchW} ${top + notchD}`,
+      `M ${-topHalf} ${top}`,
+      `L ${topHalf} ${top}`,
+      `L ${midW} ${midY}`,
+      `L ${halfW} ${base}`,
+      `L ${-halfW} ${base}`,
+      `L ${-midW} ${midY}`,
       `Z`,
     ].join(' ');
   }
@@ -165,6 +169,14 @@
     class:keystone={isKeystone}
     stroke-width={strokeW}
   />
+  {#if isKeystone}
+    <circle
+      cx={0}
+      cy={0}
+      r={WEDGE_W * 0.1}
+      class="keystone-dot"
+    />
+  {/if}
   {#each tiers as y}
     {@const xExtent = wedgeXatY(WEDGE_W, WEDGE_H, y) * 0.85}
     <line
@@ -198,5 +210,11 @@
   .tier-line {
     stroke: var(--piece-stroke, #2a2a2a);
     stroke-linecap: round;
+  }
+
+  .keystone-dot {
+    fill: var(--piece-stroke, #2a2a2a);
+    opacity: 0.55;
+    pointer-events: none;
   }
 </style>
