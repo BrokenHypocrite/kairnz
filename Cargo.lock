@@ -1794,6 +1794,8 @@ dependencies = [
  "kairnz-core",
  "kairnz-encode",
  "kairnz-onnx",
+ "kairnz-policy",
+ "ort",
  "rand 0.8.6",
  "rand_pcg",
  "safetensors",
