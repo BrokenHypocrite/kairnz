@@ -177,7 +177,7 @@
   // ---------------------------------------------------------------------------
 
   async function handleUndo() {
-    if (!gameId || busy) return;
+    if (!gameId || busy || gameOver) return;
     busy = true;
     banner = null;
     try {

@@ -21,24 +21,22 @@
     view.to_move === 'P1' ? names.players.P1 : names.players.P2
   );
 
-  const resultLabel = $derived((): string | null => {
-    if (!view.result) return null;
-    if ('Win' in view.result) {
-      const winner = view.result.Win === 'P1' ? names.players.P1 : names.players.P2;
-      return `${winner} wins!`;
-    }
-    if ('Draw' in view.result) {
-      return `Draw: ${view.result.Draw === 'MaxPlies' ? 'move limit reached' : 'repetition'}`;
-    }
-    return null;
-  });
+  const resultLabel = $derived(
+    !view.result
+      ? null
+      : 'Win' in view.result
+        ? `${view.result.Win === 'P1' ? names.players.P1 : names.players.P2} wins!`
+        : 'Draw' in view.result
+          ? `Draw: ${view.result.Draw === 'MaxPlies' ? 'move limit reached' : 'repetition'}`
+          : null
+  );
 </script>
 
 <aside class="sidebar">
   <div class="section">
     <div class="turn-label">
       {#if gameOver}
-        <span class="game-over">{resultLabel()}</span>
+        <span class="game-over">{resultLabel}</span>
       {:else}
         <span class="to-move">{toMoveLabel} to move</span>
         <span class="ap">AP remaining: <strong>{view.ap_remaining}</strong></span>
