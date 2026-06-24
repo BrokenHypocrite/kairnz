@@ -91,6 +91,16 @@ impl Game {
     pub fn to_move(&self) -> Player {
         self.pos.to_move
     }
+
+    /// Returns how many times the current position's Zobrist hash appears in the
+    /// turn-boundary history, saturating at `u8::MAX`.
+    ///
+    /// This is the repetition signal fed to the neural-network encoder. It counts
+    /// the same occurrences the repetition draw rule uses.
+    pub fn repetition_count(&self) -> u8 {
+        let count = self.history.iter().filter(|&&h| h == self.pos.zobrist).count();
+        u8::try_from(count).unwrap_or(u8::MAX)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -434,5 +444,25 @@ mod tests {
             None,
             "the standard opening position must have no terminal result"
         );
+    }
+
+    // ---------------------------------------------------------------------------
+    // Test: repetition_count counts history occurrences
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn repetition_count_counts_history_occurrences() {
+        // A fresh standard game has seeded its opening hash once.
+        let game = Game::new_standard(RuleConfig::default());
+        assert_eq!(game.repetition_count(), 1, "opening hash seeded once");
+    }
+
+    #[test]
+    fn repetition_count_reflects_injected_repeats() {
+        let mut game = Game::new_standard(RuleConfig::default());
+        let h = game.pos.zobrist;
+        game.history.push(h);
+        game.history.push(h);
+        assert_eq!(game.repetition_count(), 3, "opening hash now appears three times");
     }
 }
