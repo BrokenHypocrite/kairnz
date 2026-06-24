@@ -24,8 +24,12 @@ PROMOTE_THRESHOLD = 0.55
 
 
 def write_status(path: Path, status: dict) -> None:
-    """Writes the current loop status as JSON (atomic enough for a poller)."""
-    path.write_text(json.dumps(status))
+    """Atomically writes the current loop status as JSON, via a temp file and
+    os.replace, so a concurrent poller never reads a truncated or partial file.
+    """
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(status))
+    os.replace(tmp, path)
 
 
 def load_status(path: Path) -> dict:

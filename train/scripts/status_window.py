@@ -49,7 +49,7 @@ class StatusWindow:
             total = status.get("total_iterations", "?")
             stage = status.get("stage", "?")
             promoted = status.get("promoted_count", 0)
-            self.header.config(text=f"Iteration {it}/{total}  —  stage: {stage}")
+            self.header.config(text=f"Iteration {it}/{total}  |  stage: {stage}")
             self.subhead.config(text=f"promoted: {promoted}    last score: {status.get('last_score')}")
 
         rows = load_metrics(self.metrics_path)
