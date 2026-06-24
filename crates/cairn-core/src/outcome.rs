@@ -21,7 +21,6 @@ pub enum GameResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::piece::Player;
 
     #[test]
     fn game_result_win_roundtrips_player() {
@@ -36,5 +35,19 @@ mod tests {
             GameResult::Draw(DrawReason::MaxPlies),
             GameResult::Draw(DrawReason::Repetition)
         );
+    }
+
+    #[test]
+    fn game_result_roundtrips_through_json() {
+        for r in [
+            GameResult::Win(Player::P1),
+            GameResult::Win(Player::P2),
+            GameResult::Draw(DrawReason::MaxPlies),
+            GameResult::Draw(DrawReason::Repetition),
+        ] {
+            let s = serde_json::to_string(&r).unwrap();
+            let back: GameResult = serde_json::from_str(&s).unwrap();
+            assert_eq!(back, r);
+        }
     }
 }

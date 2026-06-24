@@ -259,7 +259,7 @@ fn config_roundtrips_yaml() {
 **Interfaces:**
 - Consumes: `Sq`, `Piece`, `Player`, `RuleConfig`.
 - Produces:
-  - `struct TurnState { ap_remaining: u8, capture_locked: BitBoard81, keystone_moved: BitBoard81, enemy_checked_at_start: [bool; 2] }`.
+  - `struct TurnState { ap_remaining: u8, capture_locked: BitBoard81, keystone_moved: BitBoard81, enemy_checked_at_start: BitBoard81 }`. (`enemy_checked_at_start` is square-anchored: the set of enemy-Keystone squares in check at the start of the current turn. See Task 8 for why this is a `BitBoard81`, not `[bool; 2]`.)
   - `struct Position { board: [Option<Piece>; 81], reserves: [u8; 2], to_move: Player, turn: TurnState, config: RuleConfig, zobrist: u64, ply: u32 }`.
   - `Position::new_standard(config: RuleConfig) -> Position` building the §2 start: ranks 1 & 3 (rank index 0 & 2) full of that player's Stones, Keystones on files 3 & 7 of rank 2 (index 1), mirrored for P2 on the far ranks. Empty reserves. `to_move = P1`, `ap_remaining = config.first_turn_ap`.
   - `fn keystones_of(&self, p: Player) -> impl Iterator<Item=Sq>`, `fn piece_at(&self, s: Sq) -> Option<Piece>`.
@@ -429,7 +429,7 @@ fn moved_keystone_cannot_move_again_when_toggle_on() {}
 - Create: `crates/cairn-core/src/check.rs`, `crates/cairn-core/src/outcome.rs`; Modify `lib.rs`.
 
 **Interfaces:**
-- Produces: `fn is_in_check(pos: &Position, keystone_sq: Sq, by: Player) -> bool` — true if any piece owned by `by` has `keystone_sq` in its `move_targets`. `fn enemy_keystones_in_check(pos: &Position, attacker: Player) -> [bool; 2]` returning per-keystone check status of `attacker.opponent()`'s keystones in stable slot order.
+- Produces: `fn is_in_check(pos: &Position, keystone_sq: Sq, by: Player) -> bool` — true if any piece owned by `by` has `keystone_sq` in its `move_targets`. `fn checked_enemy_keystone_squares(pos: &Position, attacker: Player) -> BitBoard81` returning the set of squares holding `attacker.opponent()`'s Keystones that are currently in check by `attacker`. (Square-anchored, not a positional `[bool; 2]` slot array: within a mover's turn the defender's Keystone squares are fixed, so anchoring "checked at start" by square is stable under capture, whereas slot indices shift when a Keystone is removed and would mis-fire the turn-ending rule.) `TurnState.enemy_checked_at_start` is therefore a `BitBoard81`, not `[bool; 2]`.
 - Also lands the result enums up front so later tasks compile: `enum GameResult { Win(Player), Draw(DrawReason) }`, `enum DrawReason { MaxPlies, Repetition }` in `outcome.rs` (Task 13 adds `terminal_result` and the `Game` wrapper to this module).
 
 - [ ] **Step 1: Failing tests**
@@ -452,7 +452,7 @@ fn dragon_slides_to_threaten_keystone_across_empty_rank() {}
 - Create: `crates/cairn-core/src/apply.rs`; Modify `lib.rs`.
 
 **Interfaces:**
-- Consumes: `legal_actions`, `is_in_check`, `enemy_keystones_in_check`, `zobrist_full`.
+- Consumes: `legal_actions`, `is_in_check`, `checked_enemy_keystone_squares`, `zobrist_full`.
 - Produces:
   - `struct ActionOutcome { captured: Option<CapturedInfo>, turn_ended: bool, ended_on_check: bool, result: Option<GameResult> }` (GameResult defined in Task 13; forward-declare minimal here or land Task 13 first — sequence Task 13's enum before this).
   - `fn apply_action(pos: &mut Position, a: Action) -> Result<ActionOutcome, IllegalAction>` — validates against `legal_actions`, mutates board/reserves, banks captured Stone tokens (height count) to the mover's reserve, removes a captured Keystone permanently, decrements AP by `action_cost`, updates per-turn bitboards, recomputes zobrist, increments `ply`.
@@ -516,8 +516,8 @@ fn stack_onto_keystone_is_illegal() {
 
 **Interfaces:**
 - Produces:
-  - In `apply_action`, after mutation: compute `now = enemy_keystones_in_check(pos, mover)`. If any slot true that was false in `pos.turn.enemy_checked_at_start` → set `ended_on_check = true`, `turn_ended = true`.
-  - `fn advance_turn(pos: &mut Position)` — flips `to_move`, sets `ap_remaining` to 2 (always, after the first turn), clears `capture_locked` and `keystone_moved`, recomputes `enemy_checked_at_start = enemy_keystones_in_check(pos, new_mover)`.
+  - In `apply_action`, after mutation: compute `now = checked_enemy_keystone_squares(pos, mover)`. If `(now & !pos.turn.enemy_checked_at_start)` is non-empty (any enemy-Keystone square in check now that was not in check at turn start) → set `ended_on_check = true`, `turn_ended = true`.
+  - `fn advance_turn(pos: &mut Position)` — flips `to_move`, sets `ap_remaining` to 2 (always, after the first turn), clears `capture_locked` and `keystone_moved`, recomputes `enemy_checked_at_start = checked_enemy_keystone_squares(pos, new_mover)`.
   - `apply_action` calls `advance_turn` when `turn_ended`.
 
 - [ ] **Step 1: Failing tests** (the heaviest suite)
@@ -540,7 +540,7 @@ fn capturing_an_already_checked_keystone_does_not_end_on_check_and_may_continue(
 }
 #[test]
 fn threatening_the_second_keystone_ends_turn_even_if_first_already_checked() {
-    // enemy_checked_at_start = [true, false]; action newly checks slot 1 -> turn ends.
+    // enemy_checked_at_start contains keystone A's square (already in check); action newly checks keystone B -> B's square enters the checked set -> turn ends.
 }
 #[test]
 fn leaving_own_keystone_in_check_is_legal() {

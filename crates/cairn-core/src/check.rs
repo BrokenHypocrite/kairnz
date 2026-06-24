@@ -19,6 +19,7 @@ pub fn is_in_check(pos: &Position, keystone_sq: Sq, by: Player) -> bool {
             if piece.owner != by {
                 continue;
             }
+            // `i` is always < NUM_SQUARES here, so from_index never returns None; the guard keeps us panic-free.
             if let Some(attacker_sq) = Sq::from_index(i as u8) {
                 if move_targets(pos, attacker_sq).contains(&keystone_sq) {
                     return true;
@@ -49,9 +50,8 @@ pub fn checked_enemy_keystone_squares(pos: &Position, attacker: Player) -> BitBo
 mod tests {
     use super::*;
     use crate::config::RuleConfig;
-    use crate::piece::{Piece, PieceKind, Player};
-    use crate::position::{Position, TurnState};
-    use crate::square::{BitBoard81, Sq, NUM_SQUARES};
+    use crate::piece::{Piece, PieceKind};
+    use crate::position::TurnState;
 
     fn empty_pos() -> Position {
         Position {
