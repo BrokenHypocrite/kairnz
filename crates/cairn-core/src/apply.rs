@@ -120,7 +120,8 @@ fn apply_move(pos: &mut Position, from: Sq, to: Sq) -> Result<ActionOutcome, Ill
     // --- Decrement AP ---
 
     let cost = action_cost(&Action::Move { from, to });
-    pos.turn.ap_remaining = pos.turn.ap_remaining.saturating_sub(cost);
+    debug_assert!(pos.turn.ap_remaining >= cost, "AP underflow: validation must ensure ap_remaining >= cost before decrement");
+    pos.turn.ap_remaining -= cost;
 
     // --- Update bookkeeping ---
 
@@ -325,6 +326,26 @@ mod tests {
 
         let err = apply_action(&mut pos, Action::Move { from: sq(4, 4), to: sq(4, 5) })
             .expect_err("moving from an empty square must be illegal");
+
+        assert_eq!(err, IllegalAction::NotYourPiece);
+        assert_eq!(pos.board, before_board, "board must be unchanged");
+        assert_eq!(pos.reserves, before_reserves, "reserves must be unchanged");
+        assert_eq!(pos.turn.ap_remaining, before_ap, "AP must be unchanged");
+    }
+
+    #[test]
+    fn opponent_piece_at_source_returns_not_your_piece_without_mutating() {
+        let mut pos = empty_pos_with_ap(2);
+        // P2 Stone at source; P1 to_move (default) tries to move it.
+        let from = sq(4, 4);
+        let to = sq(4, 5);
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Stone, 1));
+        let before_board = pos.board;
+        let before_reserves = pos.reserves;
+        let before_ap = pos.turn.ap_remaining;
+
+        let err = apply_action(&mut pos, Action::Move { from, to })
+            .expect_err("moving opponent's piece must be illegal");
 
         assert_eq!(err, IllegalAction::NotYourPiece);
         assert_eq!(pos.board, before_board, "board must be unchanged");
