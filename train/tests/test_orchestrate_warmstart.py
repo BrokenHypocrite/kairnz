@@ -36,3 +36,22 @@ def test_load_checkpoint_rejects_size_mismatch(tmp_path):
     except (RuntimeError, KeyError):
         raised = True
     assert raised, "loading mismatched weights must raise"
+
+
+def test_status_roundtrip(tmp_path):
+    from kairnz_train.orchestrate import load_status, write_status
+
+    path = tmp_path / "status.json"
+    assert load_status(path) == {}, "missing status reads as empty"
+    write_status(path, {"iteration": 2, "stage": "gating"})
+    assert load_status(path)["stage"] == "gating"
+
+
+def test_load_metrics_parses_lines(tmp_path):
+    from kairnz_train.orchestrate import load_metrics
+
+    path = tmp_path / "metrics.jsonl"
+    assert load_metrics(path) == [], "missing metrics reads as empty"
+    path.write_text('{"iter": 0, "a_score": 0.3}\n{"iter": 1, "a_score": 0.6}\n')
+    rows = load_metrics(path)
+    assert len(rows) == 2 and rows[1]["a_score"] == 0.6

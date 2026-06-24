@@ -5,6 +5,7 @@ pieces (promotion rule, shard windowing, environment construction) plus a
 training entry point.
 """
 
+import json
 import os
 from pathlib import Path
 from typing import Optional
@@ -20,6 +21,26 @@ from kairnz_train.train import train_epoch
 
 # Promotion threshold: a candidate must score at least this against best.
 PROMOTE_THRESHOLD = 0.55
+
+
+def write_status(path: Path, status: dict) -> None:
+    """Writes the current loop status as JSON (atomic enough for a poller)."""
+    path.write_text(json.dumps(status))
+
+
+def load_status(path: Path) -> dict:
+    """Reads the loop status JSON, or an empty dict if missing/unreadable."""
+    try:
+        return json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def load_metrics(path: Path) -> list[dict]:
+    """Reads metrics.jsonl into a list of row dicts (empty if missing)."""
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 def save_checkpoint(model: torch.nn.Module, path: Path) -> None:
