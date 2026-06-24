@@ -36,6 +36,10 @@ Out of scope (each gets its own spec later):
   the contract on both ends.
 - Hardware target: RTX 4080 Super (16 GB VRAM), AMD 9950X (16 cores / 32
   threads), 96 GB system RAM. Long unattended runs are acceptable.
+- Usable budgets (plan to these, not the raw totals): roughly 12 GB of the 16 GB
+  VRAM is available for the model plus inference and training batches; system RAM
+  idles near 38 percent, so plan for about 40 to 50 GB of usable RAM for replay
+  buffers and data loading.
 
 ## The Iteration Loop
 
@@ -122,7 +126,8 @@ A new crate and binary that:
 - Writes samples to disk as `.safetensors` shards (typed, zero-copy, read by both
   Rust and PyTorch).
 
-96 GB RAM makes a large replay buffer comfortable on disk and in memory.
+A replay buffer of several million samples fits within the usable 40 to 50 GB of
+system RAM; larger buffers spill to disk shards rather than growing in memory.
 
 ### 4. Training (`train/`, Python + PyTorch)
 
