@@ -1,6 +1,7 @@
 use crate::config::RuleConfig;
 use crate::piece::{Piece, PieceKind, Player};
 use crate::square::{BitBoard81, Sq, NUM_SQUARES};
+use crate::zobrist::zobrist_full;
 
 /// File index of the left keystone starting position.
 const KEYSTONE_FILE_LEFT: u8 = 3;
@@ -88,7 +89,7 @@ impl Position {
         place_stone_row(&mut board, Player::P2, P2_RANK_BACK);
 
         let ap = config.first_turn_ap;
-        Position {
+        let mut pos = Position {
             board,
             reserves: [0, 0],
             to_move: Player::P1,
@@ -101,7 +102,16 @@ impl Position {
             config,
             zobrist: 0,
             ply: 0,
-        }
+        };
+        pos.zobrist = zobrist_full(&pos);
+        pos
+    }
+
+    /// Recomputes and stores the Zobrist hash from scratch.
+    ///
+    /// Call this after any batch of board mutations to resync `self.zobrist`.
+    pub fn recompute_zobrist(&mut self) {
+        self.zobrist = zobrist_full(self);
     }
 
     /// Returns the piece at square `s`, if any.
@@ -129,6 +139,7 @@ mod tests {
     use crate::config::RuleConfig;
     use crate::piece::{PieceKind, Player};
     use crate::square::Sq;
+    use crate::zobrist::zobrist_full;
 
     #[test]
     fn standard_setup_has_correct_material() {
@@ -175,5 +186,20 @@ mod tests {
     fn reserves_start_empty() {
         let p = Position::new_standard(RuleConfig::default());
         assert_eq!(p.reserves, [0, 0]);
+    }
+
+    #[test]
+    fn identical_positions_hash_equal() {
+        let a = Position::new_standard(RuleConfig::default());
+        let b = Position::new_standard(RuleConfig::default());
+        assert_eq!(zobrist_full(&a), zobrist_full(&b));
+    }
+
+    #[test]
+    fn changing_side_to_move_changes_hash() {
+        let mut a = Position::new_standard(RuleConfig::default());
+        let h0 = zobrist_full(&a);
+        a.to_move = Player::P2;
+        assert_ne!(zobrist_full(&a), h0);
     }
 }

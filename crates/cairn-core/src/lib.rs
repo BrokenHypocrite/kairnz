@@ -2,6 +2,7 @@ pub mod config;
 pub mod piece;
 pub mod position;
 pub mod square;
+pub mod zobrist;
 
 #[cfg(test)]
 mod smoke {
