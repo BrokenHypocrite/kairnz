@@ -338,22 +338,9 @@
   {/if}
 
   <div class="layout">
-    <div class="left-col">
-      {#if view}
-        <Sidebar
-          {view}
-          {banner}
-          {checkAlert}
-          {canMove}
-          {canPlace}
-          {canPromote}
-          onUndo={handleUndo}
-          gameOver={gameOver}
-          bind:showPrevMove
-        />
-      {/if}
-      <ConfigPanel bind:config onNewGame={handleNewGame} disabled={busy} />
-    </div>
+    {#if view}
+      <MoveHistory {history} />
+    {/if}
 
     <div class="board-area">
       {#if view}
@@ -377,9 +364,22 @@
       {/if}
     </div>
 
-    {#if view}
-      <MoveHistory {history} />
-    {/if}
+    <div class="side-col">
+      {#if view}
+        <Sidebar
+          {view}
+          {banner}
+          {checkAlert}
+          {canMove}
+          {canPlace}
+          {canPromote}
+          onUndo={handleUndo}
+          gameOver={gameOver}
+          bind:showPrevMove
+        />
+      {/if}
+      <ConfigPanel bind:config onNewGame={handleNewGame} disabled={busy} />
+    </div>
   </div>
 </main>
 
@@ -420,7 +420,7 @@
     flex-wrap: wrap;
   }
 
-  .left-col {
+  .side-col {
     display: flex;
     flex-direction: column;
     gap: 1rem;
