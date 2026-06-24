@@ -31,8 +31,14 @@ def _run_rust(bin_name: str, extra_args: list[str]) -> str:
         "--bin", bin_name, "--",
     ] + extra_args
     completed = subprocess.run(
-        cmd, cwd=REPO_ROOT, env=subprocess_env(), capture_output=True, text=True, check=True
+        cmd, cwd=REPO_ROOT, env=subprocess_env(), capture_output=True, text=True
     )
+    if completed.returncode != 0:
+        # Surface the subprocess stderr so a failing stage is debuggable rather
+        # than hidden behind a bare CalledProcessError.
+        raise RuntimeError(
+            f"{bin_name} failed (exit {completed.returncode}):\n{completed.stderr}"
+        )
     return completed.stdout
 
 
@@ -52,7 +58,10 @@ def main() -> None:
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     args = parser.parse_args()
 
-    work = args.work
+    # Resolve to an absolute path: the Rust self-play and gate subprocesses run
+    # from the repo root, so all model/shard paths passed to them must be absolute
+    # rather than relative to this script's working directory.
+    work = args.work.resolve()
     shards_dir = work / "shards"
     models_dir = work / "models"
     shards_dir.mkdir(parents=True, exist_ok=True)
