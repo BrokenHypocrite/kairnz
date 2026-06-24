@@ -86,8 +86,8 @@ pub fn move_targets(pos: &Position, from: Sq) -> Vec<Sq> {
                     collect_step(pos, from, df, dr, piece, &mut targets);
                 }
             }
-            _ => {
-                // Height 3+ = Spire
+            3 => {
+                // Spire
                 match pos.config.spire {
                     SpireMode::Dragon => {
                         for &(df, dr) in &ORTHO {
@@ -104,6 +104,7 @@ pub fn move_targets(pos: &Position, from: Sq) -> Vec<Sq> {
                     }
                 }
             }
+            _ => {}
         },
     }
 
@@ -310,6 +311,31 @@ mod tests {
     }
 
     #[test]
+    fn spire_dragon_blocked_rays() {
+        let mut pos = empty_pos(RuleConfig::default());
+        let from = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 3));
+
+        // Friendly blocker on north ray (orthogonal) at rank 6.
+        place(&mut pos, 4, 6, Piece::new(Player::P1, PieceKind::Stone, 1));
+        // Enemy blocker on east ray (orthogonal) at file 7.
+        place(&mut pos, 7, 4, Piece::new(Player::P2, PieceKind::Stone, 1));
+
+        let targets = move_targets(&pos, from);
+
+        // North ray: rank 5 reachable, rank 6 friendly (not a target), 7 and 8 blocked.
+        assert!(targets.contains(&sq(4, 5)), "north ray: rank 5 must be reachable");
+        assert!(!targets.contains(&sq(4, 6)), "north ray: friendly at rank 6 must not be a target");
+        assert!(!targets.contains(&sq(4, 7)), "north ray: rank 7 must not be reachable past friendly");
+
+        // East ray: files 5 and 6 empty, file 7 enemy (capture), file 8 unreachable.
+        assert!(targets.contains(&sq(5, 4)), "east ray: file 5 must be reachable");
+        assert!(targets.contains(&sq(6, 4)), "east ray: file 6 must be reachable");
+        assert!(targets.contains(&sq(7, 4)), "east ray: enemy at file 7 must be a capture target");
+        assert!(!targets.contains(&sq(8, 4)), "east ray: file 8 past enemy must not be reachable");
+    }
+
+    #[test]
     fn never_moves_onto_friendly() {
         let mut pos = empty_pos(RuleConfig::default());
         let from = sq(4, 4);
@@ -324,6 +350,26 @@ mod tests {
 
         let targets = move_targets(&pos, from);
         assert!(targets.is_empty(), "no targets when all neighbors are friendly");
+    }
+
+    #[test]
+    fn spire_dragon_at_board_corner() {
+        let mut pos = empty_pos(RuleConfig::default());
+        let from = sq(0, 0);
+        place(&mut pos, 0, 0, Piece::new(Player::P1, PieceKind::Stone, 3));
+
+        let targets = move_targets(&pos, from);
+
+        // Orthogonal slides terminate at board edge: (8,0) and (0,8).
+        assert!(targets.contains(&sq(8, 0)), "corner dragon must slide east to file 8");
+        assert!(targets.contains(&sq(0, 8)), "corner dragon must slide north to rank 8");
+
+        // Check for no wraparound: wrapped squares don't exist on a corner.
+        let target_squares: Vec<(u8, u8)> = targets.iter().map(|s| (s.file(), s.rank())).collect();
+        // (0,0) is the source, so no negative or wrapped indices should appear.
+        for (f, r) in target_squares {
+            assert!(f <= 8 && r <= 8, "target ({f},{r}) is out of bounds");
+        }
     }
 
     #[test]
