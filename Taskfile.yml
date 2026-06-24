@@ -1,6 +1,22 @@
 version: '3'
+
+# PyTorch ships cuDNN 9, which the ONNX Runtime CUDA execution provider depends
+# on (onnxruntime_providers_cuda.dll needs cudnn64_9.dll). GPU tasks below
+# prepend torch's lib dir to PATH so the provider loads and inference runs on the
+# GPU. Plain `cargo test`/`cargo run` stay on the CPU fallback, which is fine for
+# tests; GPU-bound work (backend check, self-play) goes through these targets.
+vars:
+  TORCH_LIB: '{{.ROOT_DIR}}\train\.venv\Lib\site-packages\torch\lib'
+
 tasks:
   build: { cmds: ["cargo build --workspace"] }
   test: { cmds: ["cargo test --workspace"] }
   bench: { cmds: ["cargo run -p kairnz-bench --"] }
   ui: { dir: ui, cmds: ["pnpm install", "pnpm tauri dev"] }
+
+  # Verify the ONNX Runtime CUDA backend engages. Prints "backend: CUDA" when the
+  # GPU path is wired correctly, or "backend: CPU (...)" if cuDNN is unavailable.
+  # Runs via PowerShell so the backslash PATH survives (Task's sh strips them).
+  onnx-check:
+    cmds:
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cargo run -p kairnz-onnx --bin backend_check'
