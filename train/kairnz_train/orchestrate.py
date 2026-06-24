@@ -7,6 +7,7 @@ training entry point.
 
 import os
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import torch
@@ -19,6 +20,16 @@ from kairnz_train.train import train_epoch
 
 # Promotion threshold: a candidate must score at least this against best.
 PROMOTE_THRESHOLD = 0.55
+
+
+def save_checkpoint(model: torch.nn.Module, path: Path) -> None:
+    """Saves a model's weights (state_dict) to `path`."""
+    torch.save(model.state_dict(), str(path))
+
+
+def load_checkpoint(model: torch.nn.Module, path: Path) -> None:
+    """Loads weights from a checkpoint at `path` into `model` (in place)."""
+    model.load_state_dict(torch.load(str(path), map_location="cpu"))
 
 
 def should_promote(a_score: float, threshold: float = PROMOTE_THRESHOLD) -> bool:
@@ -72,22 +83,28 @@ def train_candidate(
     epochs: int,
     lr: float,
     weight_decay: float,
+    warm_start: Optional[Path] = None,
 ) -> int:
-    """Trains a fresh KairnzNet on the given shards and exports it to ONNX.
-
-    Returns the number of training samples used.
+    """Trains a KairnzNet on the given shards and exports it to ONNX, optionally
+    warm-starting from a checkpoint. Also saves the trained checkpoint next to the
+    ONNX (same stem, `.pt`). Returns the number of training samples used.
     """
     data = _load_concat(shard_paths)
     dataset = SelfPlayDataset(data)
     loader = DataLoader(dataset, batch_size=256, shuffle=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = KairnzNet(filters=filters, blocks=blocks).to(device)
+    model = KairnzNet(filters=filters, blocks=blocks)
+    if warm_start is not None and warm_start.exists():
+        load_checkpoint(model, warm_start)
+    model = model.to(device)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     for _ in range(epochs):
         train_epoch(model, _on_device(loader, device), optimizer)
 
     model.to("cpu")
+    save_checkpoint(model, out_path.with_suffix(".pt"))
     export_onnx(model, out_path)
     return len(dataset)
 
