@@ -36,6 +36,8 @@ export interface Names {
     Spire: string;
     Keystone: string;
   };
+  prompt_promote: string;
+  prompt_place: string;
 }
 
 export const names = raw as unknown as Names;

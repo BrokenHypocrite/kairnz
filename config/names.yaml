@@ -22,3 +22,5 @@ piece_codes:
   Pillar: "P"
   Spire: "T"
   Keystone: "K"
+prompt_promote: "Promote?"
+prompt_place: "Place?"

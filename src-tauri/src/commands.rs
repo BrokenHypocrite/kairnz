@@ -51,3 +51,15 @@ pub fn apply_action(
 pub fn undo(id: GameId, store: State<GameStore>) -> Result<GameView, String> {
     store.undo(id)
 }
+
+/// Returns the geometric move targets for the piece at `from`, ignoring AP/turn rules.
+///
+/// Returns an empty list if the square is empty.
+#[tauri::command]
+pub fn piece_moves(
+    id: GameId,
+    from: Sq,
+    store: State<GameStore>,
+) -> Result<Vec<Sq>, String> {
+    store.piece_moves(id, from)
+}

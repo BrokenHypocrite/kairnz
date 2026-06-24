@@ -16,6 +16,7 @@ fn main() {
             commands::legal_actions,
             commands::apply_action,
             commands::undo,
+            commands::piece_moves,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

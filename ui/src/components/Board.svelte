@@ -1,36 +1,32 @@
 <!--
   Board.svelte -- Renders a 9x9 SVG board for Cairn.
 
-  Layout:
-    - Board index i maps to file = i % 9, rank = Math.floor(i / 9).
-    - Rank 0 (P1's back rank) is rendered at the BOTTOM of the SVG; rank 8 at top.
-      This is the standard board convention (P1 nearest the viewer).
-      Achieved by flipping the Y axis: svgY = (8 - rank) * cellSize.
-    - Each cell is a square of `cellSize` SVG units.
-    - Pieces are centered in their cell via an SVG translate.
-
   Interaction:
-    - `onSquareClick(sq)` fires when the user clicks any square.
-    - `selectedSq` highlights the selected square.
-    - `legalTargets` renders move-target dots on those squares.
-    - `stackable` shows a ring on squares the current player can stack.
-    - `placeTargets` shows subtle dots for Place destinations when pendingPlace is active.
+    - Left-click: onSquareClick(sq) for selection/move
+    - Middle-click: onInspect(sq) for preview of any piece's geometric moves
+    - Right-click: onContext(sq) for place/promote prompt (preventDefault always called)
+    - onPromptConfirm / onPromptCancel: prompt popover callbacks
 
   Colors/theming are CSS custom properties (no hardcoded hex in attributes).
 -->
 <script lang="ts">
   import type { GameView, Sq } from '../lib/types.js';
   import Piece from './Piece.svelte';
+  import { names } from '../lib/names.js';
 
   interface Props {
     view: GameView;
     selectedSq?: Sq | null;
     legalTargets?: Sq[];
     stackable?: Sq[];
-    placeTargets?: Sq[];
-    pendingPlace?: boolean;
+    inspectTargets?: Sq[];
+    prompt?: { kind: 'place' | 'promote'; sq: number } | null;
     checkedKeystones?: number[];
     onSquareClick?: (sq: Sq) => void;
+    onInspect?: (sq: Sq) => void;
+    onContext?: (sq: Sq) => void;
+    onPromptConfirm?: () => void;
+    onPromptCancel?: () => void;
   }
 
   let {
@@ -38,50 +34,37 @@
     selectedSq = null,
     legalTargets = [],
     stackable = [],
-    placeTargets = [],
-    pendingPlace = false,
+    inspectTargets = [],
+    prompt = null,
     checkedKeystones = [],
     onSquareClick,
+    onInspect,
+    onContext,
+    onPromptConfirm,
+    onPromptCancel,
   }: Props = $props();
 
-  /** Grid dimensions. */
   const GRID = 9;
   const CELL = 60;
-
-  /** Total SVG canvas size. */
   const BOARD_SIZE = GRID * CELL;
-
-  /** Margin for coordinate labels (left and bottom). */
   const LABEL_MARGIN = 20;
 
-  /** Arrays for label rendering. */
   const files = Array.from({ length: GRID }, (_, i) => i);
   const ranks = Array.from({ length: GRID }, (_, i) => i);
-
-  /** Indices for all 81 squares. */
   const squares = Array.from({ length: GRID * GRID }, (_, i) => i);
 
-  /**
-   * Maps a board index to the SVG cell top-left corner.
-   * Rank 0 is at the bottom (svgY = (GRID-1)*CELL), rank 8 at top (svgY = 0).
-   */
   function cellPos(i: number): { x: number; y: number } {
     const file = i % GRID;
     const rank = Math.floor(i / GRID);
-    return {
-      x: file * CELL,
-      y: (GRID - 1 - rank) * CELL,
-    };
+    return { x: file * CELL, y: (GRID - 1 - rank) * CELL };
   }
 
-  /** True for light squares (standard checkerboard). */
   function isLight(i: number): boolean {
     const file = i % GRID;
     const rank = Math.floor(i / GRID);
     return (file + rank) % 2 === 0;
   }
 
-  /** Occupied squares as {index, piece} pairs. */
   const occupied = $derived(
     squares
       .map((i) => ({ i, piece: view.board[i] }))
@@ -92,11 +75,38 @@
 
   const legalSet = $derived(new Set(legalTargets));
   const stackableSet = $derived(new Set(stackable));
-  const placeSet = $derived(new Set(placeTargets));
+  const inspectSet = $derived(new Set(inspectTargets));
   const checkSet = $derived(new Set(checkedKeystones));
+
+  /** SVG coordinate of the prompt popover anchor (top-left of cell). */
+  const promptPos = $derived(
+    prompt !== null ? cellPos(prompt.sq) : null
+  );
+
+  /** Prompt display text. */
+  const promptText = $derived(
+    prompt?.kind === 'promote' ? names.prompt_promote : names.prompt_place
+  );
 
   function handleCellClick(sq: Sq) {
     onSquareClick?.(sq);
+  }
+
+  function handleCellContext(e: MouseEvent, sq: Sq) {
+    e.preventDefault();
+    onContext?.(sq);
+  }
+
+  function handleCellAuxClick(e: MouseEvent, sq: Sq) {
+    if (e.button === 1) {
+      onInspect?.(sq);
+    }
+  }
+
+  function handleCellMouseDown(e: MouseEvent, _sq: Sq) {
+    if (e.button === 1) {
+      e.preventDefault();
+    }
   }
 </script>
 
@@ -109,12 +119,11 @@
     role="img"
     aria-label="Cairn game board"
   >
-    <!-- Checkered grid cells (clickable) -->
+    <!-- Checkered grid cells -->
     {#each squares as i}
       {@const pos = cellPos(i)}
       {@const isSelected = selectedSq === i}
       {@const isTarget = legalSet.has(i)}
-      {@const isPlaceDst = pendingPlace && placeSet.has(i)}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_interactive_supports_focus -->
       <rect
@@ -125,28 +134,18 @@
         class={isLight(i) ? 'cell cell-light' : 'cell cell-dark'}
         class:cell-selected={isSelected}
         class:cell-target={isTarget}
-        class:cell-place={isPlaceDst}
         role="button"
         onclick={() => handleCellClick(i)}
+        oncontextmenu={(e) => handleCellContext(e, i)}
+        onauxclick={(e) => handleCellAuxClick(e, i)}
+        onmousedown={(e) => handleCellMouseDown(e, i)}
       />
     {/each}
 
-    <!-- Grid border lines (column and row) -->
+    <!-- Grid lines -->
     {#each Array.from({ length: GRID + 1 }, (_, k) => k) as k}
-      <line
-        x1={k * CELL}
-        y1={0}
-        x2={k * CELL}
-        y2={BOARD_SIZE}
-        class="grid-line"
-      />
-      <line
-        x1={0}
-        y1={k * CELL}
-        x2={BOARD_SIZE}
-        y2={k * CELL}
-        class="grid-line"
-      />
+      <line x1={k * CELL} y1={0} x2={k * CELL} y2={BOARD_SIZE} class="grid-line" />
+      <line x1={0} y1={k * CELL} x2={BOARD_SIZE} y2={k * CELL} class="grid-line" />
     {/each}
 
     <!-- Stackable-square ring indicators -->
@@ -154,32 +153,28 @@
       {#if stackableSet.has(i)}
         {@const pos = cellPos(i)}
         <rect
-          x={pos.x + 3}
-          y={pos.y + 3}
-          width={CELL - 6}
-          height={CELL - 6}
+          x={pos.x + 3} y={pos.y + 3}
+          width={CELL - 6} height={CELL - 6}
           class="stack-ring"
           pointer-events="none"
         />
       {/if}
     {/each}
 
-    <!-- Check highlight rings for keystones in check -->
+    <!-- Check highlight rings -->
     {#each squares as i}
       {#if checkSet.has(i)}
         {@const pos = cellPos(i)}
         <rect
-          x={pos.x + 2}
-          y={pos.y + 2}
-          width={CELL - 4}
-          height={CELL - 4}
+          x={pos.x + 2} y={pos.y + 2}
+          width={CELL - 4} height={CELL - 4}
           class="check-ring"
           pointer-events="none"
         />
       {/if}
     {/each}
 
-    <!-- Legal-move target dots -->
+    <!-- Actionable move-target dots (left-click selection) -->
     {#each squares as i}
       {#if legalSet.has(i)}
         {@const pos = cellPos(i)}
@@ -193,21 +188,21 @@
       {/if}
     {/each}
 
-    <!-- Place-target dots (shown when pendingPlace) -->
+    <!-- Inspect preview dots (middle-click, read-only, visually distinct) -->
     {#each squares as i}
-      {#if pendingPlace && placeSet.has(i)}
+      {#if inspectSet.has(i)}
         {@const pos = cellPos(i)}
         <circle
           cx={pos.x + CELL / 2}
           cy={pos.y + CELL / 2}
           r={CELL * 0.14}
-          class="place-dot"
+          class="inspect-dot"
           pointer-events="none"
         />
       {/if}
     {/each}
 
-    <!-- Pieces centered in their cells -->
+    <!-- Pieces -->
     {#each occupied as { i, piece }}
       {@const pos = cellPos(i)}
       {@const cx = pos.x + CELL / 2}
@@ -218,6 +213,9 @@
         role="button"
         aria-label="piece at square {i}"
         onclick={() => handleCellClick(i)}
+        oncontextmenu={(e) => handleCellContext(e, i)}
+        onauxclick={(e) => handleCellAuxClick(e, i)}
+        onmousedown={(e) => handleCellMouseDown(e, i)}
         onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCellClick(i); }}
         tabindex="0"
       >
@@ -225,7 +223,7 @@
       </g>
     {/each}
 
-    <!-- File labels (a..i) along the bottom -->
+    <!-- File labels -->
     {#each files as file}
       <text
         x={file * CELL + CELL / 2}
@@ -236,7 +234,7 @@
       >{String.fromCharCode(97 + file)}</text>
     {/each}
 
-    <!-- Rank labels (1..9) along the left, 1 at bottom matching y-inversion -->
+    <!-- Rank labels -->
     {#each ranks as rank}
       <text
         x={-LABEL_MARGIN * 0.65}
@@ -246,6 +244,24 @@
         dominant-baseline="middle"
       >{rank + 1}</text>
     {/each}
+
+    <!-- Right-click prompt popover (rendered in SVG foreignObject) -->
+    {#if prompt !== null && promptPos !== null}
+      <foreignObject
+        x={promptPos.x}
+        y={promptPos.y - 54}
+        width="120"
+        height="50"
+      >
+        <div class="prompt-box" xmlns="http://www.w3.org/1999/xhtml">
+          <span class="prompt-text">{promptText}</span>
+          <div class="prompt-buttons">
+            <button class="prompt-yes" onclick={onPromptConfirm}>Yes</button>
+            <button class="prompt-no" onclick={onPromptCancel}>No</button>
+          </div>
+        </div>
+      </foreignObject>
+    {/if}
   </svg>
 </div>
 
@@ -259,6 +275,7 @@
 
   .board-svg {
     display: block;
+    overflow: visible;
   }
 
   .cell {
@@ -266,25 +283,10 @@
     cursor: pointer;
   }
 
-  .cell-light {
-    fill: var(--board-light);
-  }
-
-  .cell-dark {
-    fill: var(--board-dark);
-  }
-
-  .cell-selected {
-    fill: #aef2a8 !important;
-  }
-
-  .cell-target {
-    fill: #d4f5d0 !important;
-  }
-
-  .cell-place {
-    fill: #cce5ff !important;
-  }
+  .cell-light { fill: var(--board-light); }
+  .cell-dark { fill: var(--board-dark); }
+  .cell-selected { fill: #aef2a8 !important; }
+  .cell-target { fill: #d4f5d0 !important; }
 
   .grid-line {
     stroke: var(--grid-line);
@@ -296,9 +298,11 @@
     opacity: 0.7;
   }
 
-  .place-dot {
-    fill: #0066cc;
-    opacity: 0.7;
+  .inspect-dot {
+    fill: none;
+    stroke: var(--inspect-dot, #7c3aed);
+    stroke-width: 2.5;
+    opacity: 0.85;
   }
 
   .stack-ring {
@@ -322,5 +326,49 @@
     font-family: sans-serif;
     pointer-events: none;
     user-select: none;
+  }
+
+  .prompt-box {
+    background: #fffbeb;
+    border: 1.5px solid #92400e;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-family: sans-serif;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    box-shadow: 0 2px 6px #0003;
+    width: 110px;
+  }
+
+  .prompt-text {
+    font-weight: 600;
+    color: #451a03;
+  }
+
+  .prompt-buttons {
+    display: flex;
+    gap: 4px;
+  }
+
+  .prompt-yes {
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .prompt-no {
+    background: #6b7280;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
   }
 </style>

@@ -33,3 +33,8 @@ export async function applyAction(id: GameId, action: Action): Promise<ApplyResu
 export async function undo(id: GameId): Promise<GameView> {
   return invoke('undo', { id });
 }
+
+/** Returns the geometric move targets for the piece at `from`, ignoring AP/turn rules. */
+export async function pieceMoves(id: GameId, from: Sq): Promise<Sq[]> {
+  return invoke('piece_moves', { id, from });
+}

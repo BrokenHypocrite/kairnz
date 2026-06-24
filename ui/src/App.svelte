@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { newGame, legalActions, applyAction, undo } from './lib/api.js';
+  import { newGame, legalActions, applyAction, undo, pieceMoves } from './lib/api.js';
   import { defaultConfig } from './lib/types.js';
   import type { Action, GameId, GameView, Player, RuleConfig, Sq } from './lib/types.js';
   import Board from './components/Board.svelte';
@@ -19,10 +19,15 @@
   let legal = $state<Action[]>([]);
   let selected = $state<Sq | null>(null);
   let banner = $state<string | null>(null);
-  let pendingPlace = $state(false);
   let config = $state<RuleConfig>({ ...defaultConfig });
   let error = $state<string | null>(null);
   let busy = $state(false);
+
+  /** Middle-click preview: the inspected square and its geometric move targets. */
+  let inspect = $state<{ sq: number; targets: number[] } | null>(null);
+
+  /** Right-click confirmation prompt. */
+  let prompt = $state<{ kind: 'place' | 'promote'; sq: number } | null>(null);
 
   // ---------------------------------------------------------------------------
   // Move history
@@ -51,22 +56,9 @@
          .map((a) => a.Stack.target)
   );
 
-  /** Squares that are valid Place destinations. */
-  const placeTargets = $derived(
-    legal.filter((a): a is { Place: { to: Sq } } => 'Place' in a)
-         .map((a) => a.Place.to)
-  );
-
-  const canPlace = $derived(placeTargets.length > 0);
-
   /** Move-target dots for the currently selected square. */
   const currentMoveTargets = $derived(
     selected !== null ? moveTargetsFrom(selected) : []
-  );
-
-  /** Whether the selected square is a valid stack target. */
-  const selectedIsStackable = $derived(
-    selected !== null && stackableSquares.includes(selected)
   );
 
   const gameOver = $derived(view !== null && view.result !== null);
@@ -108,7 +100,7 @@
   // State refresh after any action or new game
   // ---------------------------------------------------------------------------
 
-  async function refreshAfterAction(newView: GameView, newGameId: GameId, checkBanner: boolean) {
+  async function refreshAfterAction(newView: GameView, newGameId: GameId) {
     view = newView;
     if (newView.result === null) {
       legal = await legalActions(newGameId);
@@ -116,10 +108,8 @@
       legal = [];
     }
     selected = null;
-    pendingPlace = false;
-    if (checkBanner) {
-      // banner already set by caller
-    }
+    inspect = null;
+    prompt = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -132,7 +122,6 @@
     banner = null;
     try {
       const mover: Player = view!.to_move;
-      // Capture the moving piece BEFORE applying (engine moves it; code needed pre-apply).
       const movingPiece = 'Move' in action ? (view!.board[action.Move.from] ?? null) : null;
       const result = await applyAction(id, action);
       if (result.turn_ended_on_check) {
@@ -150,7 +139,7 @@
         movingPiece
       );
       history = [...history, { ply: plyCounter, player: mover, text: notation }];
-      await refreshAfterAction(result.view, id, true);
+      await refreshAfterAction(result.view, id);
     } catch (e) {
       error = String(e);
     } finally {
@@ -159,59 +148,90 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Square click handler (wired to Board)
+  // Left-click: select/move
   // ---------------------------------------------------------------------------
 
   function handleSquareClick(sq: Sq) {
     if (!view || !gameId || gameOver || busy) return;
+    inspect = null;
+    prompt = null;
 
-    // While a Place is pending, any click on a valid place target applies it.
-    if (pendingPlace) {
-      if (isPlaceInLegal(sq)) {
-        const action: Action = { Place: { to: sq } };
-        void dispatch(gameId, action);
-      } else {
-        // Click outside a place target cancels pending place.
-        pendingPlace = false;
-      }
-      return;
-    }
-
-    // If a square is already selected:
     if (selected !== null) {
-      // Clicking a valid move target applies the Move.
       if (isMoveInLegal(selected, sq)) {
         const from = selected;
         const action: Action = { Move: { from, to: sq } };
         void dispatch(gameId, action);
         return;
       }
-      // Clicking the already-selected square deselects.
       if (sq === selected) {
         selected = null;
         return;
       }
     }
 
-    // Try to select a new piece owned by the current player.
     const piece = view.board[sq];
     if (piece !== null && piece.owner === view.to_move) {
       selected = sq;
       return;
     }
 
-    // Clicking anything else clears selection.
     selected = null;
   }
 
   // ---------------------------------------------------------------------------
-  // Stack handler (triggered by button in template)
+  // Middle-click: inspect any piece's geometric moves
   // ---------------------------------------------------------------------------
 
-  function handleStack() {
-    if (!gameId || selected === null || !isStackInLegal(selected)) return;
-    const target = selected;
-    void dispatch(gameId, { Stack: { target } });
+  async function handleInspect(sq: Sq) {
+    if (!view || !gameId) return;
+    const piece = view.board[sq];
+    if (piece === null) {
+      inspect = null;
+      return;
+    }
+    try {
+      const targets = await pieceMoves(gameId, sq);
+      inspect = { sq, targets };
+      selected = null;
+      prompt = null;
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Right-click: promote or place prompt
+  // ---------------------------------------------------------------------------
+
+  function handleContext(sq: Sq) {
+    if (!view || !gameId || gameOver) return;
+    const piece = view.board[sq];
+    if (piece !== null && piece.owner === view.to_move && isStackInLegal(sq)) {
+      prompt = { kind: 'promote', sq };
+    } else if (piece === null && isPlaceInLegal(sq)) {
+      prompt = { kind: 'place', sq };
+    } else {
+      prompt = null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt confirm / cancel
+  // ---------------------------------------------------------------------------
+
+  function confirmPrompt() {
+    if (!prompt || !gameId) return;
+    const { kind, sq } = prompt;
+    prompt = null;
+    if (kind === 'promote') {
+      void dispatch(gameId, { Stack: { target: sq } });
+    } else {
+      void dispatch(gameId, { Place: { to: sq } });
+    }
+  }
+
+  function cancelPrompt() {
+    prompt = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -227,7 +247,8 @@
       legal = await legalActions(gameId);
       view = newView;
       selected = null;
-      pendingPlace = false;
+      inspect = null;
+      prompt = null;
       if (history.length > 0) history = history.slice(0, -1);
       if (plyCounter > 0) plyCounter -= 1;
     } catch (e) {
@@ -246,7 +267,8 @@
     banner = null;
     error = null;
     selected = null;
-    pendingPlace = false;
+    inspect = null;
+    prompt = null;
     history = [];
     plyCounter = 0;
     try {
@@ -282,29 +304,6 @@
 
     <div class="board-area">
       {#if view}
-        <!-- Action buttons above the board -->
-        <div class="action-bar">
-          {#if !gameOver && canPlace}
-            <button
-              class="btn-action"
-              class:active={pendingPlace}
-              onclick={() => { pendingPlace = !pendingPlace; selected = null; }}
-              disabled={busy}
-            >
-              {pendingPlace ? 'Cancel Place' : 'Place from reserve'}
-            </button>
-          {/if}
-          {#if !gameOver && selectedIsStackable}
-            <button
-              class="btn-action"
-              onclick={handleStack}
-              disabled={busy || selected === null || !isStackInLegal(selected)}
-            >
-              Stack (2 AP)
-            </button>
-          {/if}
-        </div>
-
         {#if checkAlert}
           <div class="check-alert" role="alert">{checkAlert}</div>
         {/if}
@@ -314,10 +313,14 @@
           selectedSq={selected}
           legalTargets={currentMoveTargets}
           stackable={stackableSquares}
-          placeTargets={placeTargets}
-          pendingPlace={pendingPlace}
+          inspectTargets={inspect?.targets ?? []}
+          {prompt}
           checkedKeystones={view.checked_keystones}
           onSquareClick={handleSquareClick}
+          onInspect={handleInspect}
+          onContext={handleContext}
+          onPromptConfirm={confirmPrompt}
+          onPromptCancel={cancelPrompt}
         />
       {:else}
         <p class="loading">Loading...</p>
@@ -348,6 +351,8 @@
     --piece-stroke-w: 1px;
     --coord: #5a3e28;
     --check: #cc2200;
+    --inspect-dot: #7c3aed;
+    --inspect-dot-stroke: #5b21b6;
   }
 
   main {
@@ -375,36 +380,6 @@
     flex-direction: column;
     gap: 0.5rem;
     align-items: flex-start;
-  }
-
-  .action-bar {
-    display: flex;
-    gap: 0.5rem;
-    min-height: 2rem;
-  }
-
-  .btn-action {
-    padding: 0.35rem 0.8rem;
-    background: var(--board-border);
-    color: #fff;
-    border: none;
-    border-radius: 3px;
-    font-size: 0.88rem;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-
-  .btn-action:hover:not(:disabled) {
-    opacity: 0.85;
-  }
-
-  .btn-action:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-action.active {
-    background: #0066cc;
   }
 
   .error {

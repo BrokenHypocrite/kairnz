@@ -106,6 +106,20 @@ impl GameStore {
         }
     }
 
+    /// Returns the geometric move targets for the piece at `from`, ignoring AP/turn rules.
+    ///
+    /// Returns an empty Vec if the square is empty. Returns Err if `id` is unknown
+    /// or the mutex is poisoned.
+    pub fn piece_moves(&self, id: GameId, from: Sq) -> Result<Vec<Sq>, String> {
+        use cairn_core::movement::move_targets;
+        let guard = self.games.lock().map_err(|e| e.to_string())?;
+        let entry = guard.get(&id).ok_or_else(|| format!("unknown game id {id}"))?;
+        if entry.game.pos.piece_at(from).is_none() {
+            return Ok(Vec::new());
+        }
+        Ok(move_targets(&entry.game.pos, from))
+    }
+
     /// Restores the previous game state by popping the undo stack.
     ///
     /// Returns an error string if `id` is unknown or the undo stack is empty.
@@ -303,6 +317,46 @@ mod tests {
                 _ => panic!("square {i} occupancy differs after undo"),
             }
         }
+    }
+
+    /// `piece_moves` returns geometric targets for an enemy piece and empty for an empty square.
+    #[test]
+    fn piece_moves_returns_targets_for_enemy_and_empty_for_vacant() {
+        let store = default_store();
+        let (id, view) = store.new_game(RuleConfig::default());
+
+        // Find an enemy (P2) piece square on the board.
+        let enemy_sq = view.board
+            .iter()
+            .enumerate()
+            .find_map(|(i, pc)| {
+                if let Some(p) = pc {
+                    if p.owner == cairn_core::piece::Player::P2 {
+                        return Some(Sq::new((i % 9) as u8, (i / 9) as u8).unwrap());
+                    }
+                }
+                None
+            })
+            .expect("opening board must have at least one P2 piece");
+
+        let targets = store.piece_moves(id, enemy_sq).expect("piece_moves must succeed");
+        assert!(!targets.is_empty(), "enemy piece at opening must have geometric move targets");
+
+        // An empty square must return empty.
+        // Find an empty square (centre area, typically empty at start).
+        let empty_sq = view.board
+            .iter()
+            .enumerate()
+            .find_map(|(i, pc)| {
+                if pc.is_none() {
+                    return Some(Sq::new((i % 9) as u8, (i / 9) as u8).unwrap());
+                }
+                None
+            })
+            .expect("opening board must have at least one empty square");
+
+        let empty_targets = store.piece_moves(id, empty_sq).expect("piece_moves on empty must succeed");
+        assert!(empty_targets.is_empty(), "empty square must have no move targets");
     }
 
     /// Operations on an unknown game ID must return an Err.
