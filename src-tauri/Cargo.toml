@@ -1,0 +1,13 @@
+[package]
+name = "cairn-tauri"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cairn-core = { path = "../crates/cairn-core" }
+tauri = { version = "2", features = [] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

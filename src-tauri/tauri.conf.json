@@ -1,0 +1,26 @@
+{
+  "productName": "cairn",
+  "version": "0.1.0",
+  "identifier": "com.cairn.app",
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 700,
+        "resizable": true,
+        "title": "Cairn",
+        "width": 900
+      }
+    ]
+  },
+  "bundle": {},
+  "plugins": {}
+}
