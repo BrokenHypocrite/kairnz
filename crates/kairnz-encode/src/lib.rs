@@ -6,10 +6,12 @@
 pub mod canonical;
 pub mod action_index;
 pub mod mask;
+pub mod planes;
 
 pub use action_index::{action_to_index, index_to_action};
 pub use canonical::canonical_sq;
 pub use mask::legal_mask;
+pub use planes::encode_planes;
 
 /// Number of 9x9 input planes produced for each position.
 pub const NUM_PLANES: usize = 14;
