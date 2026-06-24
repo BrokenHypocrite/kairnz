@@ -1714,6 +1714,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kairnz-encode"
+version = "0.1.0"
+dependencies = [
+ "kairnz-core",
+]
+
+[[package]]
 name = "kairnz-policy"
 version = "0.1.0"
 dependencies = [
