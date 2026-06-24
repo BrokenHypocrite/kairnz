@@ -1786,6 +1786,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "kairnz-selfplay"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "clap",
+ "kairnz-core",
+ "kairnz-encode",
+ "kairnz-onnx",
+ "rand 0.8.6",
+ "rand_pcg",
+ "safetensors",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
 name = "kairnz-tauri"
 version = "0.1.0"
 dependencies = [
@@ -2972,6 +2988,16 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "safetensors"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44560c11236a6130a46ce36c836a62936dc81ebf8c36a37947423571be0e55b6"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "same-file"
