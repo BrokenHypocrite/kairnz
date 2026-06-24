@@ -114,7 +114,7 @@ impl Position {
         (0..NUM_SQUARES).filter_map(move |i| {
             self.board[i].and_then(|pc| {
                 if pc.owner == p && pc.kind == PieceKind::Keystone {
-                    Some(Sq(i as u8))
+                    Sq::from_index(i as u8)
                 } else {
                     None
                 }
@@ -145,13 +145,22 @@ mod tests {
     }
 
     #[test]
-    fn keystones_on_files_3_and_7_rank_2() {
+    fn keystones_on_files_3_and_7_rank_index_1() {
         let p = Position::new_standard(RuleConfig::default());
         for f in [3u8, 7] {
             let s = Sq::new(f, 1).unwrap();
             assert!(
                 matches!(p.piece_at(s), Some(pc) if pc.kind == PieceKind::Keystone && pc.owner == Player::P1)
             );
+        }
+    }
+
+    #[test]
+    fn p2_keystones_on_files_3_and_7_rank_index_7() {
+        let p = Position::new_standard(RuleConfig::default());
+        for f in [3u8, 7] {
+            let s = Sq::new(f, 7).unwrap();
+            assert!(matches!(p.piece_at(s), Some(pc) if pc.kind == PieceKind::Keystone && pc.owner == Player::P2));
         }
     }
 

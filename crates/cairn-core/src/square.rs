@@ -21,6 +21,15 @@ impl Sq {
         }
     }
 
+    /// Constructs a square from a raw board index, returning `None` if it is out of range.
+    pub fn from_index(index: u8) -> Option<Sq> {
+        if (index as usize) < NUM_SQUARES {
+            Some(Sq(index))
+        } else {
+            None
+        }
+    }
+
     /// Returns the file (column) index of this square.
     pub fn file(self) -> u8 {
         self.0 % BOARD_SIZE
@@ -94,6 +103,12 @@ mod tests {
     fn sq_rejects_out_of_range() {
         assert!(Sq::new(9, 0).is_none());
         assert!(Sq::new(0, 9).is_none());
+    }
+
+    #[test]
+    fn sq_from_index_roundtrips_and_rejects_out_of_range() {
+        assert_eq!(Sq::from_index(80), Some(Sq(80)));
+        assert!(Sq::from_index(81).is_none());
     }
 
     #[test]
