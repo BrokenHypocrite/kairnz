@@ -9,7 +9,7 @@ cairn-policy = { path = "../cairn-policy" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-clap = { version = "4", features = ["derive"] }
+clap = { workspace = true }
 
 [dev-dependencies]
-proptest = "1"
+proptest = { workspace = true }

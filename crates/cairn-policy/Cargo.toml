@@ -9,4 +9,4 @@ rand = { workspace = true }
 rand_pcg = { workspace = true }
 
 [dev-dependencies]
-proptest = "1"
+proptest = { workspace = true }
