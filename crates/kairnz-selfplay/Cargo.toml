@@ -1,0 +1,16 @@
+[package]
+name = "kairnz-selfplay"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kairnz-core = { path = "../kairnz-core" }
+kairnz-encode = { path = "../kairnz-encode" }
+kairnz-onnx = { path = "../kairnz-onnx" }
+safetensors = "0.4"
+bytemuck = "1"
+rand = { workspace = true }
+rand_pcg = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
