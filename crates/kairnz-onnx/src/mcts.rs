@@ -87,13 +87,10 @@ pub(crate) fn legal_priors(logits: &[f32], legal: &[Action], to_move: Player) ->
 /// VALUE PERSPECTIVE: `value_sum` accumulates leaf values from the perspective of
 /// this node's `to_move` (see the crate's value convention). `prior` is this
 /// node's PUCT prior as a child of its parent.
-// `parent` is retained for future backtracking traversal (e.g. plan 4 debug tools).
-#[allow(dead_code)]
 struct Node {
     game: Game,
     to_move: Player,
     action_from_parent: Option<Action>,
-    parent: Option<usize>,
     prior: f32,
     children: Vec<usize>,
     expanded: bool,
@@ -102,13 +99,12 @@ struct Node {
 }
 
 impl Node {
-    fn new(game: Game, parent: Option<usize>, action_from_parent: Option<Action>, prior: f32) -> Node {
+    fn new(game: Game, action_from_parent: Option<Action>, prior: f32) -> Node {
         let to_move = game.pos.to_move;
         Node {
             game,
             to_move,
             action_from_parent,
-            parent,
             prior,
             children: Vec::new(),
             expanded: false,
@@ -139,7 +135,7 @@ impl AzMcts {
         if game.terminal_result().is_some() {
             return Vec::new();
         }
-        let mut arena: Vec<Node> = vec![Node::new(game.clone(), None, None, 0.0)];
+        let mut arena: Vec<Node> = vec![Node::new(game.clone(), None, 0.0)];
 
         for _ in 0..self.config.simulations {
             self.simulate(&mut arena);
@@ -219,7 +215,7 @@ impl AzMcts {
         for (action, prior) in legal.iter().zip(priors.iter()) {
             let mut child_game = arena[leaf].game.clone();
             let _ = child_game.apply(*action);
-            let child = Node::new(child_game, Some(leaf), Some(*action), *prior);
+            let child = Node::new(child_game, Some(*action), *prior);
             let child_idx = arena.len();
             arena.push(child);
             arena[leaf].children.push(child_idx);
