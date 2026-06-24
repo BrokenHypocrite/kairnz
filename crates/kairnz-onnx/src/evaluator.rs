@@ -5,6 +5,7 @@ use std::path::Path;
 use kairnz_core::position::Position;
 use kairnz_encode::{encode_planes, NUM_PLANES};
 use ndarray::Array4;
+use ort::execution_providers::{CUDAExecutionProvider, ExecutionProvider};
 use ort::session::Session;
 use ort::value::Tensor;
 
@@ -20,10 +21,19 @@ pub struct OnnxEvaluator {
 }
 
 impl OnnxEvaluator {
-    /// Loads a model from `path` using the CPU execution provider.
+    /// Loads a model from `path`, attempting the CUDA execution provider and
+    /// falling back to CPU. The chosen backend is recorded and reported by
+    /// [`OnnxEvaluator::backend`]. CUDA failures are non-fatal.
     pub fn from_path(path: &Path) -> ort::Result<OnnxEvaluator> {
-        let session = Session::builder()?.commit_from_file(path)?;
-        Ok(OnnxEvaluator { session, backend: Backend::Cpu })
+        let mut builder = Session::builder()?;
+        let cuda = CUDAExecutionProvider::default();
+        let backend = if cuda.register(&mut builder).is_ok() {
+            Backend::Cuda
+        } else {
+            Backend::Cpu
+        };
+        let session = builder.commit_from_file(path)?;
+        Ok(OnnxEvaluator { session, backend })
     }
 
     /// Returns the execution backend this session is running on.
