@@ -1,22 +1,42 @@
 <!--
-  Sidebar.svelte -- Game status, player info, banners, and undo.
+  Sidebar.svelte -- Game status, player info, actions, banners, and undo.
 
-  Shows: whose turn, AP remaining, both reserves, check-auto-end banner,
-  game-over message. Undo button calls the provided handler.
+  Shows: whose turn, AP remaining, actions availability list, both reserves,
+  check alert, check-auto-end banner, game-over message. Undo button calls
+  the provided handler.
 -->
 <script lang="ts">
   import type { GameView } from '../lib/types.js';
   import { names } from '../lib/names.js';
 
+  /** AP cost constants -- fixed game rules, not data. */
+  const AP_MOVE = 1;
+  const AP_PLACE = 1;
+  const AP_PROMOTE = 2;
+
   interface Props {
     view: GameView;
     banner: string | null;
+    checkAlert: string | null;
+    canMove: boolean;
+    canPlace: boolean;
+    canPromote: boolean;
     onUndo: () => void;
     gameOver: boolean;
     showPrevMove?: boolean;
   }
 
-  let { view, banner, onUndo, gameOver, showPrevMove = $bindable(true) }: Props = $props();
+  let {
+    view,
+    banner,
+    checkAlert,
+    canMove,
+    canPlace,
+    canPromote,
+    onUndo,
+    gameOver,
+    showPrevMove = $bindable(true),
+  }: Props = $props();
 
   const toMoveLabel = $derived(
     view.to_move === 'P1'
@@ -47,6 +67,27 @@
     </div>
   </div>
 
+  {#if !gameOver}
+    <div class="section actions">
+      <div class="actions-title">Actions</div>
+      <div class="action-row" class:available={canMove} class:unavailable={!canMove}>
+        <span class="action-name">{names.action_labels.Move}</span>
+        <span class="action-cost">{AP_MOVE} AP</span>
+        <span class="action-status">{canMove ? '✓' : '✗'}</span>
+      </div>
+      <div class="action-row" class:available={canPlace} class:unavailable={!canPlace}>
+        <span class="action-name">{names.action_labels.Place}</span>
+        <span class="action-cost">{AP_PLACE} AP</span>
+        <span class="action-status">{canPlace ? '✓' : '✗'}</span>
+      </div>
+      <div class="action-row" class:available={canPromote} class:unavailable={!canPromote}>
+        <span class="action-name">{names.action_labels.Promote}</span>
+        <span class="action-cost">{AP_PROMOTE} AP</span>
+        <span class="action-status">{canPromote ? '✓' : '✗'}</span>
+      </div>
+    </div>
+  {/if}
+
   <div class="section reserves">
     <div class="reserve-row">
       <span class="reserve-label">{names.side_symbols.P1} {names.players.P1} reserve:</span>
@@ -57,6 +98,12 @@
       <span class="reserve-count">{view.reserves[1]}</span>
     </div>
   </div>
+
+  {#if checkAlert}
+    <div class="section check-alert" role="alert">
+      {checkAlert}
+    </div>
+  {/if}
 
   {#if banner}
     <div class="section banner" role="alert">
@@ -118,6 +165,65 @@
     color: #b00;
   }
 
+  /* Actions section */
+  .actions {
+    border-top: 1px solid #e0d8ce;
+    padding-top: 0.5rem;
+    gap: 0.25rem;
+  }
+
+  .actions-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #888;
+    margin-bottom: 0.15rem;
+  }
+
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    padding: 0.15rem 0.3rem;
+    border-radius: 3px;
+  }
+
+  .action-row.available {
+    color: var(--board-border);
+    font-weight: 600;
+  }
+
+  .action-row.unavailable {
+    color: #bbb;
+  }
+
+  .action-name {
+    flex: 1;
+  }
+
+  .action-cost {
+    font-size: 0.78rem;
+    color: inherit;
+    opacity: 0.75;
+  }
+
+  .action-status {
+    font-size: 0.9rem;
+    min-width: 1ch;
+    text-align: center;
+  }
+
+  .action-row.available .action-status {
+    color: #2a7a2a;
+  }
+
+  .action-row.unavailable .action-status {
+    color: #ccc;
+  }
+
+  /* Reserves */
   .reserves {
     gap: 0.25rem;
   }
@@ -134,6 +240,18 @@
     font-weight: 600;
   }
 
+  /* Check alert -- prominent, inside the box */
+  .check-alert {
+    background: #ffeaea;
+    border: 2px solid var(--check);
+    border-radius: 3px;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--check);
+  }
+
+  /* Turn-ended-on-check notice */
   .banner {
     background: #fff3cd;
     border: 1px solid #ffc107;
@@ -141,21 +259,6 @@
     padding: 0.5rem 0.6rem;
     font-size: 0.85rem;
     color: #664d03;
-  }
-
-  .btn-undo {
-    padding: 0.4rem 1rem;
-    background: #6c757d;
-    color: #fff;
-    border: none;
-    border-radius: 3px;
-    font-size: 0.88rem;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-
-  .btn-undo:hover {
-    opacity: 0.85;
   }
 
   .display-opts {
@@ -171,5 +274,20 @@
     color: #444;
     cursor: pointer;
     user-select: none;
+  }
+
+  .btn-undo {
+    padding: 0.4rem 1rem;
+    background: #6c757d;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn-undo:hover {
+    opacity: 0.85;
   }
 </style>

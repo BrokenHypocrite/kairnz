@@ -96,6 +96,11 @@
 
   const gameOver = $derived(view !== null && view.result !== null);
 
+  /** Whether each action type has at least one legal instance right now. */
+  const canMove = $derived(legal.some((a) => 'Move' in a));
+  const canPlace = $derived(legal.some((a) => 'Place' in a));
+  const canPromote = $derived(legal.some((a) => 'Stack' in a));
+
   /** Keystone squares belonging to the side to move that are currently in check. */
   const myCheckedKeystones = $derived(
     view !== null
@@ -337,10 +342,6 @@
 
     <div class="board-area">
       {#if view}
-        {#if checkAlert}
-          <div class="check-alert" role="alert">{checkAlert}</div>
-        {/if}
-
         <Board
           {view}
           selectedSq={selected}
@@ -365,6 +366,10 @@
       <Sidebar
         {view}
         {banner}
+        {checkAlert}
+        {canMove}
+        {canPlace}
+        {canPromote}
         onUndo={handleUndo}
         gameOver={gameOver}
         bind:showPrevMove
@@ -428,13 +433,4 @@
     color: #666;
   }
 
-  .check-alert {
-    background: #ffeaea;
-    border: 2px solid var(--check);
-    border-radius: 4px;
-    padding: 0.5rem 0.8rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--check);
-  }
 </style>
