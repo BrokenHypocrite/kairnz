@@ -1,5 +1,6 @@
 pub mod config;
 pub mod piece;
+pub mod position;
 pub mod square;
 
 #[cfg(test)]
