@@ -1,8 +1,9 @@
 //! Self-play data generation for the Kairnz AlphaZero pipeline.
 
 pub mod gate;
-pub mod sample;
+pub mod parallel;
 pub mod play;
+pub mod sample;
 pub mod shard;
 
 use serde::{Deserialize, Serialize};
