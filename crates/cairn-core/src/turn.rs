@@ -2,6 +2,7 @@ use crate::check::checked_enemy_keystone_squares;
 use crate::config::DEFAULT_AP;
 use crate::position::Position;
 use crate::square::BitBoard81;
+use crate::zobrist::zobrist_full;
 
 /// Advances `pos` to the next player's turn.
 ///
@@ -10,15 +11,14 @@ use crate::square::BitBoard81;
 /// perspective (which of the new opponent's Keystones are already in check at the
 /// start of this turn).
 ///
-/// This does NOT recompute the Zobrist hash. Side-to-move folding for repetition
-/// detection is captured by the caller at turn boundaries in a later task; here we
-/// only update side-to-move and turn bookkeeping.
+/// Refreshes the Zobrist hash to reflect the new side-to-move.
 pub fn advance_turn(pos: &mut Position) {
     pos.to_move = pos.to_move.opponent();
     pos.turn.ap_remaining = DEFAULT_AP;
     pos.turn.capture_locked = BitBoard81::default();
     pos.turn.keystone_moved = BitBoard81::default();
     pos.turn.enemy_checked_at_start = checked_enemy_keystone_squares(pos, pos.to_move);
+    pos.zobrist = zobrist_full(pos);
 }
 
 #[cfg(test)]
@@ -86,6 +86,17 @@ mod tests {
         assert!(
             pos.turn.enemy_checked_at_start.contains(p1_keystone),
             "new mover P2 already checks P1's Keystone at turn start"
+        );
+    }
+
+    #[test]
+    fn advance_turn_refreshes_zobrist_for_new_side() {
+        let mut pos = Position::new_standard(RuleConfig::default());
+        let before = pos.zobrist;
+        advance_turn(&mut pos);
+        assert_ne!(
+            pos.zobrist, before,
+            "zobrist must change when side-to-move flips"
         );
     }
 }
