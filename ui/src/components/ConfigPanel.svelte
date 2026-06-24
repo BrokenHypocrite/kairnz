@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import type { RuleConfig, SpireMode } from '../lib/types.js';
+  import { names } from '../lib/names.js';
 
   interface Props {
     config: RuleConfig;
@@ -29,7 +30,7 @@
     <label for="spire-mode">Spire mode</label>
     <select id="spire-mode" bind:value={config.spire} {disabled}>
       {#each SPIRE_OPTIONS as mode}
-        <option value={mode}>{mode}</option>
+        <option value={mode}>{names.spire_modes[mode]}</option>
       {/each}
     </select>
   </div>

@@ -6,6 +6,7 @@
   import Board from './components/Board.svelte';
   import ConfigPanel from './components/ConfigPanel.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import { names } from './lib/names.js';
 
   // ---------------------------------------------------------------------------
   // Core state
@@ -106,7 +107,7 @@
     try {
       const result = await applyAction(id, action);
       if (result.turn_ended_on_check) {
-        banner = 'Turn ended: that action put an enemy Keystone in check.';
+        banner = names.check_banner;
       }
       await refreshAfterAction(result.view, id, true);
     } catch (e) {
@@ -225,7 +226,7 @@
 </script>
 
 <main>
-  <h1>Cairn</h1>
+  <h1>{names.game}</h1>
 
   {#if error}
     <p class="error">Error: {error}</p>

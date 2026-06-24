@@ -17,6 +17,15 @@ export interface Names {
     P1: string;
     P2: string;
   };
+  spire_modes: {
+    Dragon: string;
+    Queen: string;
+  };
+  draw_reasons: {
+    MaxPlies: string;
+    Repetition: string;
+  };
+  check_banner: string;
 }
 
 export const names = raw as unknown as Names;

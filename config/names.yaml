@@ -7,3 +7,10 @@ pieces:
 players:
   P1: Player 1
   P2: Player 2
+spire_modes:
+  Dragon: Dragon
+  Queen: Queen
+draw_reasons:
+  MaxPlies: move limit reached
+  Repetition: repetition
+check_banner: "Turn ended: that action put an enemy Keystone in check."

@@ -27,7 +27,7 @@
       : 'Win' in view.result
         ? `${view.result.Win === 'P1' ? names.players.P1 : names.players.P2} wins!`
         : 'Draw' in view.result
-          ? `Draw: ${view.result.Draw === 'MaxPlies' ? 'move limit reached' : 'repetition'}`
+          ? `Draw: ${names.draw_reasons[view.result.Draw]}`
           : null
   );
 </script>
