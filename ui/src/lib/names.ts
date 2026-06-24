@@ -38,6 +38,7 @@ export interface Names {
   };
   prompt_promote: string;
   prompt_place: string;
+  show_prev_move: string;
 }
 
 export const names = raw as unknown as Names;

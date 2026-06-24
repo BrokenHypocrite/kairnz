@@ -22,6 +22,7 @@
     inspectTargets?: Sq[];
     prompt?: { kind: 'place' | 'promote'; sq: number } | null;
     checkedKeystones?: number[];
+    prevMoveSquares?: number[];
     onSquareClick?: (sq: Sq) => void;
     onInspect?: (sq: Sq) => void;
     onContext?: (sq: Sq) => void;
@@ -37,6 +38,7 @@
     inspectTargets = [],
     prompt = null,
     checkedKeystones = [],
+    prevMoveSquares = [],
     onSquareClick,
     onInspect,
     onContext,
@@ -77,6 +79,7 @@
   const stackableSet = $derived(new Set(stackable));
   const inspectSet = $derived(new Set(inspectTargets));
   const checkSet = $derived(new Set(checkedKeystones));
+  const prevMoveSet = $derived(new Set(prevMoveSquares));
 
   /** SVG coordinate of the prompt popover anchor (top-left of cell). */
   const promptPos = $derived(
@@ -140,6 +143,21 @@
         onauxclick={(e) => handleCellAuxClick(e, i)}
         onmousedown={(e) => handleCellMouseDown(e, i)}
       />
+    {/each}
+
+    <!-- Last-move background tint (below pieces, above base cell color) -->
+    {#each squares as i}
+      {#if prevMoveSet.has(i)}
+        {@const pos = cellPos(i)}
+        <rect
+          x={pos.x}
+          y={pos.y}
+          width={CELL}
+          height={CELL}
+          class="last-move-tint"
+          pointer-events="none"
+        />
+      {/if}
     {/each}
 
     <!-- Grid lines -->
@@ -315,6 +333,11 @@
   .cell-dark { fill: var(--board-dark); }
   .cell-selected { fill: #aef2a8 !important; }
   .cell-target { fill: #d4f5d0 !important; }
+
+  .last-move-tint {
+    fill: var(--last-move, rgba(210, 160, 30, 0.35));
+    stroke: none;
+  }
 
   .grid-line {
     stroke: var(--grid-line);

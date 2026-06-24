@@ -13,9 +13,10 @@
     banner: string | null;
     onUndo: () => void;
     gameOver: boolean;
+    showPrevMove?: boolean;
   }
 
-  let { view, banner, onUndo, gameOver }: Props = $props();
+  let { view, banner, onUndo, gameOver, showPrevMove = $bindable(true) }: Props = $props();
 
   const toMoveLabel = $derived(
     view.to_move === 'P1'
@@ -62,6 +63,13 @@
       {banner}
     </div>
   {/if}
+
+  <div class="section display-opts">
+    <label class="opt-label">
+      <input type="checkbox" bind:checked={showPrevMove} />
+      {names.show_prev_move}
+    </label>
+  </div>
 
   {#if !gameOver}
     <button class="btn-undo" onclick={onUndo}>Undo</button>
@@ -148,5 +156,20 @@
 
   .btn-undo:hover {
     opacity: 0.85;
+  }
+
+  .display-opts {
+    border-top: 1px solid #e0d8ce;
+    padding-top: 0.5rem;
+  }
+
+  .opt-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #444;
+    cursor: pointer;
+    user-select: none;
   }
 </style>

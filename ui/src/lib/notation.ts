@@ -3,6 +3,16 @@
  */
 import type { Action, PieceView } from './types.js';
 
+/**
+ * Returns the board squares involved in a single action.
+ * Used to record which squares to highlight for the previous-move indicator.
+ */
+export function actionSquares(action: Action): number[] {
+  if ('Move' in action) return [action.Move.from, action.Move.to];
+  if ('Place' in action) return [action.Place.to];
+  return [action.Stack.target];
+}
+
 /** Converts a square index to algebraic coordinate (e.g. 12 -> "d2"). */
 export function sqToCoord(sq: number): string {
   const file = sq % 9;

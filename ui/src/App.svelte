@@ -8,7 +8,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import MoveHistory from './components/MoveHistory.svelte';
   import { names } from './lib/names.js';
-  import { actionToNotation, sqToCoord } from './lib/notation.js';
+  import { actionToNotation, actionSquares, sqToCoord } from './lib/notation.js';
 
   // ---------------------------------------------------------------------------
   // Core state
@@ -32,9 +32,42 @@
   // ---------------------------------------------------------------------------
   // Move history
   // ---------------------------------------------------------------------------
-  interface HistoryEntry { ply: number; player: Player; text: string; }
+  interface HistoryEntry { ply: number; player: Player; text: string; squares: number[]; }
   let history = $state<HistoryEntry[]>([]);
   let plyCounter = $state(0);
+
+  // ---------------------------------------------------------------------------
+  // Display options
+  // ---------------------------------------------------------------------------
+  /** When true, highlights the opponent's most recent completed turn on the board. */
+  let showPrevMove = $state(true);
+
+  /** Helper: returns the opponent of the given player. */
+  function opponentOf(p: Player): Player { return p === 'P1' ? 'P2' : 'P1'; }
+
+  /**
+   * Derives the squares to highlight for the previous-move indicator.
+   * Walks history from the end:
+   *  1. Skips any trailing entries by the current player (their own in-progress AP actions).
+   *  2. Collects the contiguous run of entries by the opponent (their last completed turn).
+   * Returns a de-duplicated list of squares, or [] at game start / when no opponent turn exists.
+   */
+  const prevMoveSquares = $derived((): number[] => {
+    if (!view) return [];
+    const current = view.to_move;
+    const opponent = opponentOf(current);
+    let i = history.length - 1;
+    // Skip trailing current-player entries (in-progress AP actions for the current turn).
+    while (i >= 0 && history[i].player === current) i--;
+    // Collect the opponent's most recent contiguous run.
+    const collected: number[] = [];
+    while (i >= 0 && history[i].player === opponent) {
+      for (const sq of history[i].squares) collected.push(sq);
+      i--;
+    }
+    // De-duplicate while preserving order.
+    return [...new Set(collected)];
+  });
 
   // ---------------------------------------------------------------------------
   // Affordance derivation -- all membership checks run against `legal`
@@ -138,7 +171,7 @@
         names.piece_codes,
         movingPiece
       );
-      history = [...history, { ply: plyCounter, player: mover, text: notation }];
+      history = [...history, { ply: plyCounter, player: mover, text: notation, squares: actionSquares(action) }];
       await refreshAfterAction(result.view, id);
     } catch (e) {
       error = String(e);
@@ -316,6 +349,7 @@
           inspectTargets={inspect?.targets ?? []}
           {prompt}
           checkedKeystones={view.checked_keystones}
+          prevMoveSquares={showPrevMove ? prevMoveSquares() : []}
           onSquareClick={handleSquareClick}
           onInspect={handleInspect}
           onContext={handleContext}
@@ -333,6 +367,7 @@
         {banner}
         onUndo={handleUndo}
         gameOver={gameOver}
+        bind:showPrevMove
       />
       <MoveHistory {history} />
     {/if}
@@ -353,6 +388,7 @@
     --check: #cc2200;
     --inspect-dot: #7c3aed;
     --inspect-dot-stroke: #5b21b6;
+    --last-move: rgba(210, 160, 30, 0.35);
   }
 
   main {

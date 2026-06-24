@@ -24,3 +24,4 @@ piece_codes:
   Keystone: "K"
 prompt_promote: "Promote?"
 prompt_place: "Place?"
+show_prev_move: "Show previous move"
