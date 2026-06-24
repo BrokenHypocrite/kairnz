@@ -5,8 +5,10 @@
 //! lightweight game crates.
 
 pub mod evaluator;
+pub mod policy;
 
 pub use evaluator::OnnxEvaluator;
+pub use policy::OnnxPolicy;
 
 /// The execution backend a session is running on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
