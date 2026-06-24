@@ -1,6 +1,8 @@
 pub mod actions;
+pub mod check;
 pub mod config;
 pub mod movement;
+pub mod outcome;
 pub mod piece;
 pub mod position;
 pub mod square;

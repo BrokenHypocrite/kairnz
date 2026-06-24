@@ -145,7 +145,7 @@ mod tests {
                 ap_remaining: ap,
                 capture_locked: BitBoard81::default(),
                 keystone_moved: BitBoard81::default(),
-                enemy_checked_at_start: [false, false],
+                enemy_checked_at_start: BitBoard81::default(),
             },
             config: RuleConfig::default(),
             zobrist: 0,

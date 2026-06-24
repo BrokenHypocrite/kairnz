@@ -34,8 +34,8 @@ pub struct TurnState {
     pub capture_locked: BitBoard81,
     /// Squares from which a keystone has already moved this turn.
     pub keystone_moved: BitBoard81,
-    /// Whether each player's keystone was in check at the start of this turn.
-    pub enemy_checked_at_start: [bool; 2],
+    /// Squares holding enemy Keystones that were in check at the start of this turn.
+    pub enemy_checked_at_start: BitBoard81,
 }
 
 /// The full mutable game state.
@@ -97,7 +97,7 @@ impl Position {
                 ap_remaining: ap,
                 capture_locked: BitBoard81::default(),
                 keystone_moved: BitBoard81::default(),
-                enemy_checked_at_start: [false, false],
+                enemy_checked_at_start: BitBoard81::default(),
             },
             config,
             zobrist: 0,
