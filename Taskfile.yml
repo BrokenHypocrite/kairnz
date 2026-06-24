@@ -32,3 +32,13 @@ tasks:
       SEED: '{{.SEED | default 0}}'
     cmds:
       - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cargo run -p kairnz-selfplay --bin selfplay --release -- --model "{{.MODEL}}" --out "{{.OUT}}" --games {{.GAMES}} --simulations {{.SIMS}} --seed {{.SEED}}'
+
+  # Train KairnzNet on self-play shards and export ONNX. Override vars, e.g.
+  #   task train SHARDS=data OUT=models/iter1.onnx EPOCHS=20
+  train:
+    vars:
+      SHARDS: '{{.SHARDS | default "data"}}'
+      OUT: '{{.OUT | default "models/trained.onnx"}}'
+      EPOCHS: '{{.EPOCHS | default 10}}'
+    cmds:
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; uv run python scripts/train.py --shards "../{{.SHARDS}}" --out "../{{.OUT}}" --epochs {{.EPOCHS}}'
