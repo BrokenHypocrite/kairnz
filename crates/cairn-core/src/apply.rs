@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::actions::{action_cost, Action, IllegalAction};
+use crate::actions::{action_cost, legal_actions, Action, IllegalAction};
 use crate::check::checked_enemy_keystone_squares;
 use crate::movement::move_targets;
 use crate::outcome::GameResult;
@@ -185,6 +185,14 @@ fn finalize(
     let newly_checked = now.difference(pos.turn.enemy_checked_at_start);
     let ended_on_check = !newly_checked.is_empty();
     let mut turn_ended = ended_on_check || pos.turn.ap_remaining == 0;
+
+    // §5: if the game is still live and the turn hasn't ended yet, end it
+    // when the acting player has no remaining legal action (AP > 0 but nothing
+    // they can actually do). This prevents the game loop from ever seeing an
+    // empty mid-turn action list.
+    if result.is_none() && !turn_ended && legal_actions(pos).is_empty() {
+        turn_ended = true;
+    }
 
     if result.is_some() {
         // The action won the game: it is over. Force turn_ended and do not advance.
@@ -1050,11 +1058,15 @@ mod tests {
         pos.config = cfg;
         // P1 Keystone at (4,4). Place it away from any enemy Keystone.
         place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Keystone, 1));
-        // No enemy pieces at all: no check can fire and no win can happen.
+        // A second P1 Stone at (6,6) ensures that after the Keystone moves, P1 still
+        // has at least one legal action (the Stone can move), so the turn does not end
+        // via the no-legal-action rule. This is necessary because the test is checking
+        // that the moved Keystone is excluded from legal_actions, not that the turn ends.
+        place(&mut pos, 6, 6, Piece::new(Player::P1, PieceKind::Stone, 1));
 
         let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 4), to: sq(4, 5) })
             .expect("keystone move must be legal");
-        assert!(!outcome.turn_ended, "1 AP must remain");
+        assert!(!outcome.turn_ended, "1 AP must remain; Stone at (6,6) keeps legal actions non-empty");
 
         let dest = sq(4, 5);
         let actions = crate::actions::legal_actions(&pos);

@@ -2,6 +2,7 @@ pub mod actions;
 pub mod apply;
 pub mod check;
 pub mod config;
+pub mod game;
 pub mod movement;
 pub mod outcome;
 pub mod piece;
