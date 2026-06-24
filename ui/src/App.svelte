@@ -338,7 +338,22 @@
   {/if}
 
   <div class="layout">
-    <ConfigPanel bind:config onNewGame={handleNewGame} disabled={busy} />
+    <div class="left-col">
+      {#if view}
+        <Sidebar
+          {view}
+          {banner}
+          {checkAlert}
+          {canMove}
+          {canPlace}
+          {canPromote}
+          onUndo={handleUndo}
+          gameOver={gameOver}
+          bind:showPrevMove
+        />
+      {/if}
+      <ConfigPanel bind:config onNewGame={handleNewGame} disabled={busy} />
+    </div>
 
     <div class="board-area">
       {#if view}
@@ -363,17 +378,6 @@
     </div>
 
     {#if view}
-      <Sidebar
-        {view}
-        {banner}
-        {checkAlert}
-        {canMove}
-        {canPlace}
-        {canPromote}
-        onUndo={handleUndo}
-        gameOver={gameOver}
-        bind:showPrevMove
-      />
       <MoveHistory {history} />
     {/if}
   </div>
@@ -414,6 +418,13 @@
     align-items: flex-start;
     gap: 1.5rem;
     flex-wrap: wrap;
+  }
+
+  .left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-self: flex-start;
   }
 
   .board-area {

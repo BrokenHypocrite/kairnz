@@ -44,6 +44,7 @@ export interface Names {
     Place: string;
     Promote: string;
   };
+  rules_title: string;
 }
 
 export const names = raw as unknown as Names;
