@@ -7,6 +7,7 @@ use crate::position::Position;
 
 /// A game session wrapping a `Position` with a turn-boundary position history
 /// used for repetition detection.
+#[derive(Clone)]
 pub struct Game {
     /// The current game position.
     pub pos: Position,

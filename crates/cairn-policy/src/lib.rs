@@ -1,3 +1,5 @@
+pub mod eval;
+pub mod greedy;
 pub mod policy;
 pub mod random;
 
