@@ -1,5 +1,11 @@
 use crate::metrics::Metrics;
 
+#[derive(serde::Serialize)]
+struct ConfigMetrics<'a> {
+    name: &'a str,
+    metrics: &'a Metrics,
+}
+
 /// Renders a side-by-side text table with one column per config and one row
 /// per metric. Intended for terminal display.
 pub fn render_human(results: &[(String, Metrics)]) -> String {
@@ -138,20 +144,12 @@ pub fn render_human(results: &[(String, Metrics)]) -> String {
 /// Serializes results to pretty-printed JSON pairing each config name with its
 /// Metrics. Returns an error message string on failure (no panic).
 pub fn render_json(results: &[(String, Metrics)]) -> String {
-    let entries: Vec<serde_json::Value> = results
+    let payload: Vec<ConfigMetrics> = results
         .iter()
-        .map(|(name, metrics)| {
-            let m = match serde_json::to_value(metrics) {
-                Ok(v) => v,
-                Err(_) => serde_json::Value::Null,
-            };
-            serde_json::json!({ "config": name, "metrics": m })
-        })
+        .map(|(name, metrics)| ConfigMetrics { name, metrics })
         .collect();
-    match serde_json::to_string_pretty(&entries) {
-        Ok(s) => s,
-        Err(e) => format!("{{\"error\": \"{}\"}}", e),
-    }
+    serde_json::to_string_pretty(&payload)
+        .unwrap_or_else(|e| format!("{{\"error\": \"json serialization failed: {}\"}}", e))
 }
 
 #[cfg(test)]
