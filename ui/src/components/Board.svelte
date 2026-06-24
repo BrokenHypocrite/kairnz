@@ -174,9 +174,9 @@
       {/if}
     {/each}
 
-    <!-- Actionable move-target dots (left-click selection) -->
+    <!-- Actionable move-target dots for empty squares (left-click selection) -->
     {#each squares as i}
-      {#if legalSet.has(i)}
+      {#if legalSet.has(i) && view.board[i] === null}
         {@const pos = cellPos(i)}
         <circle
           cx={pos.x + CELL / 2}
@@ -188,9 +188,9 @@
       {/if}
     {/each}
 
-    <!-- Inspect preview dots (middle-click, read-only, visually distinct) -->
+    <!-- Inspect preview dots for empty squares (middle-click, read-only, visually distinct) -->
     {#each squares as i}
-      {#if inspectSet.has(i)}
+      {#if inspectSet.has(i) && view.board[i] === null}
         {@const pos = cellPos(i)}
         <circle
           cx={pos.x + CELL / 2}
@@ -221,6 +221,34 @@
       >
         <Piece {piece} cellSize={CELL} />
       </g>
+    {/each}
+
+    <!-- Capture rings for occupied actionable targets -- rendered above pieces -->
+    {#each squares as i}
+      {#if legalSet.has(i) && view.board[i] !== null}
+        {@const pos = cellPos(i)}
+        <circle
+          cx={pos.x + CELL / 2}
+          cy={pos.y + CELL / 2}
+          r={CELL * 0.44}
+          class="capture-ring"
+          pointer-events="none"
+        />
+      {/if}
+    {/each}
+
+    <!-- Capture rings for occupied inspect targets -- rendered above pieces -->
+    {#each squares as i}
+      {#if inspectSet.has(i) && view.board[i] !== null}
+        {@const pos = cellPos(i)}
+        <circle
+          cx={pos.x + CELL / 2}
+          cy={pos.y + CELL / 2}
+          r={CELL * 0.44}
+          class="inspect-capture-ring"
+          pointer-events="none"
+        />
+      {/if}
     {/each}
 
     <!-- File labels -->
@@ -302,6 +330,22 @@
     fill: none;
     stroke: var(--inspect-dot, #7c3aed);
     stroke-width: 2.5;
+    opacity: 0.85;
+  }
+
+  /* Capture ring: stroked circle framing the cell, no fill, rendered above the piece. */
+  .capture-ring {
+    fill: none;
+    stroke: #1b7a1b;
+    stroke-width: 3.5;
+    opacity: 0.85;
+  }
+
+  /* Inspect capture ring: same shape, purple to match inspect-dot color. */
+  .inspect-capture-ring {
+    fill: none;
+    stroke: var(--inspect-dot, #7c3aed);
+    stroke-width: 3;
     opacity: 0.85;
   }
 
