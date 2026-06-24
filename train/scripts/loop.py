@@ -10,8 +10,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import torch
-
 from kairnz_train.model import KairnzNet
 from kairnz_train.onnx_export import export_onnx
 from kairnz_train.orchestrate import (
@@ -67,7 +65,7 @@ def main() -> None:
     print(f"seeded {best}")
 
     for it in range(args.iterations):
-        shard = shards_dir / f"iter{it}.safetensors"
+        shard = shards_dir / f"iter{it:04d}.safetensors"
         _run_rust("selfplay", [
             "--model", str(best), "--out", str(shard),
             "--games", str(args.selfplay_games), "--simulations", str(args.selfplay_sims),
@@ -75,7 +73,7 @@ def main() -> None:
         ])
 
         window = select_window(list(shards_dir.glob("*.safetensors")), args.window)
-        candidate = models_dir / f"candidate{it}.onnx"
+        candidate = models_dir / f"candidate{it:04d}.onnx"
         n = train_candidate(window, candidate, args.filters, args.blocks, args.epochs, args.lr, args.weight_decay)
 
         gate_out = _run_rust("gate", [

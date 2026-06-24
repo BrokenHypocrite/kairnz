@@ -24,6 +24,17 @@ def test_select_window_keeps_most_recent():
     assert select_window(paths, 0) == sorted(paths)
 
 
+def test_select_window_orders_zero_padded_iterations():
+    # Zero-padded names sort numerically, so iter0010 is more recent than iter0002.
+    paths = [Path(f"iter{i:04d}.safetensors") for i in range(12)]
+    window = select_window(paths, 3)
+    assert window == [
+        Path("iter0009.safetensors"),
+        Path("iter0010.safetensors"),
+        Path("iter0011.safetensors"),
+    ]
+
+
 def test_subprocess_env_prepends_torch_lib():
     env = subprocess_env()
     assert env["PATH"].startswith(str(torch_lib_dir()) + os.pathsep)
