@@ -9,17 +9,38 @@
     - Each cell is a square of `cellSize` SVG units.
     - Pieces are centered in their cell via an SVG translate.
 
+  Interaction:
+    - `onSquareClick(sq)` fires when the user clicks any square.
+    - `selectedSq` highlights the selected square.
+    - `legalTargets` renders move-target dots on those squares.
+    - `stackable` shows a ring on squares the current player can stack.
+    - `placeTargets` shows subtle dots for Place destinations when pendingPlace is active.
+
   Colors/theming are CSS custom properties (no hardcoded hex in attributes).
 -->
 <script lang="ts">
-  import type { GameView } from '../lib/types.js';
+  import type { GameView, Sq } from '../lib/types.js';
   import Piece from './Piece.svelte';
 
   interface Props {
     view: GameView;
+    selectedSq?: Sq | null;
+    legalTargets?: Sq[];
+    stackable?: Sq[];
+    placeTargets?: Sq[];
+    pendingPlace?: boolean;
+    onSquareClick?: (sq: Sq) => void;
   }
 
-  let { view }: Props = $props();
+  let {
+    view,
+    selectedSq = null,
+    legalTargets = [],
+    stackable = [],
+    placeTargets = [],
+    pendingPlace = false,
+    onSquareClick,
+  }: Props = $props();
 
   /** Grid dimensions. */
   const GRID = 9;
@@ -59,6 +80,14 @@
         s.piece !== null
       )
   );
+
+  const legalSet = $derived(new Set(legalTargets));
+  const stackableSet = $derived(new Set(stackable));
+  const placeSet = $derived(new Set(placeTargets));
+
+  function handleCellClick(sq: Sq) {
+    onSquareClick?.(sq);
+  }
 </script>
 
 <div class="board-wrapper">
@@ -70,15 +99,25 @@
     role="img"
     aria-label="Cairn game board"
   >
-    <!-- Checkered grid cells -->
+    <!-- Checkered grid cells (clickable) -->
     {#each squares as i}
       {@const pos = cellPos(i)}
+      {@const isSelected = selectedSq === i}
+      {@const isTarget = legalSet.has(i)}
+      {@const isPlaceDst = pendingPlace && placeSet.has(i)}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_interactive_supports_focus -->
       <rect
         x={pos.x}
         y={pos.y}
         width={CELL}
         height={CELL}
         class={isLight(i) ? 'cell cell-light' : 'cell cell-dark'}
+        class:cell-selected={isSelected}
+        class:cell-target={isTarget}
+        class:cell-place={isPlaceDst}
+        role="button"
+        onclick={() => handleCellClick(i)}
       />
     {/each}
 
@@ -100,12 +139,63 @@
       />
     {/each}
 
+    <!-- Stackable-square ring indicators -->
+    {#each squares as i}
+      {#if stackableSet.has(i)}
+        {@const pos = cellPos(i)}
+        <rect
+          x={pos.x + 3}
+          y={pos.y + 3}
+          width={CELL - 6}
+          height={CELL - 6}
+          class="stack-ring"
+          pointer-events="none"
+        />
+      {/if}
+    {/each}
+
+    <!-- Legal-move target dots -->
+    {#each squares as i}
+      {#if legalSet.has(i)}
+        {@const pos = cellPos(i)}
+        <circle
+          cx={pos.x + CELL / 2}
+          cy={pos.y + CELL / 2}
+          r={CELL * 0.14}
+          class="move-dot"
+          pointer-events="none"
+        />
+      {/if}
+    {/each}
+
+    <!-- Place-target dots (shown when pendingPlace) -->
+    {#each squares as i}
+      {#if pendingPlace && placeSet.has(i)}
+        {@const pos = cellPos(i)}
+        <circle
+          cx={pos.x + CELL / 2}
+          cy={pos.y + CELL / 2}
+          r={CELL * 0.14}
+          class="place-dot"
+          pointer-events="none"
+        />
+      {/if}
+    {/each}
+
     <!-- Pieces centered in their cells -->
     {#each occupied as { i, piece }}
       {@const pos = cellPos(i)}
       {@const cx = pos.x + CELL / 2}
       {@const cy = pos.y + CELL / 2}
-      <g transform="translate({cx} {cy})">
+      <g
+        transform="translate({cx} {cy})"
+        style="cursor: pointer;"
+        role="button"
+        aria-label="piece at square {i}"
+        onclick={() => handleCellClick(i)}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCellClick(i); }}
+        tabindex="0"
+      >
         <Piece {piece} cellSize={CELL} />
       </g>
     {/each}
@@ -126,6 +216,7 @@
 
   .cell {
     stroke: none;
+    cursor: pointer;
   }
 
   .cell-light {
@@ -136,8 +227,38 @@
     fill: var(--board-dark);
   }
 
+  .cell-selected {
+    fill: #aef2a8 !important;
+  }
+
+  .cell-target {
+    fill: #d4f5d0 !important;
+  }
+
+  .cell-place {
+    fill: #cce5ff !important;
+  }
+
   .grid-line {
     stroke: var(--grid-line);
     stroke-width: 0.5;
+  }
+
+  .move-dot {
+    fill: #1b7a1b;
+    opacity: 0.7;
+  }
+
+  .place-dot {
+    fill: #0066cc;
+    opacity: 0.7;
+  }
+
+  .stack-ring {
+    fill: none;
+    stroke: #cc8800;
+    stroke-width: 2.5;
+    stroke-dasharray: 6 3;
+    rx: 2;
   }
 </style>
