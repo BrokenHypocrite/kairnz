@@ -93,7 +93,7 @@ mod tests {
     fn write_shard_roundtrips_shapes_and_values() {
         let samples = vec![tiny_sample(1.0), tiny_sample(-1.0)];
         let dir = std::env::temp_dir();
-        let path = dir.join("kairnz_selfplay_test_shard.safetensors");
+        let path = dir.join(format!("kairnz_selfplay_test_shard_{}.safetensors", std::process::id()));
         write_shard(&samples, &path).expect("shard writes");
 
         let bytes = std::fs::read(&path).expect("read shard");
@@ -118,6 +118,10 @@ mod tests {
         let mask = st.tensor("legal_mask").expect("mask tensor");
         assert_eq!(mask.dtype(), Dtype::U8);
         assert_eq!(mask.shape(), &[2, POLICY_SIZE]);
+
+        let policy = st.tensor("policy").expect("policy tensor");
+        assert_eq!(policy.shape(), &[2, POLICY_SIZE]);
+        assert_eq!(policy.dtype(), Dtype::F32);
 
         let _ = std::fs::remove_file(&path);
     }

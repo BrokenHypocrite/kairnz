@@ -28,5 +28,7 @@ tasks:
       MODEL: '{{.MODEL | default "crates/kairnz-onnx/tests/fixtures/random_init.onnx"}}'
       OUT: '{{.OUT | default "selfplay-shard.safetensors"}}'
       GAMES: '{{.GAMES | default 8}}'
+      SIMS: '{{.SIMS | default 200}}'
+      SEED: '{{.SEED | default 0}}'
     cmds:
-      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cargo run -p kairnz-selfplay --bin selfplay --release -- --model "{{.MODEL}}" --out "{{.OUT}}" --games {{.GAMES}}'
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cargo run -p kairnz-selfplay --bin selfplay --release -- --model "{{.MODEL}}" --out "{{.OUT}}" --games {{.GAMES}} --simulations {{.SIMS}} --seed {{.SEED}}'

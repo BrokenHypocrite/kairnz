@@ -38,6 +38,9 @@ pub fn play_game(
 
     while game.terminal_result().is_none() {
         let visits = mcts.search(&game);
+        // Defensive: search only returns empty for terminal positions, which the
+        // while condition above already excludes. This branch is unreachable per
+        // the engine invariant and exists purely as a safety guard.
         if visits.is_empty() {
             break;
         }
