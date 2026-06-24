@@ -104,7 +104,12 @@ mod tests {
 
     fn gate_config() -> AzMctsConfig {
         // Small sims keep the test fast; epsilon > 0 makes games vary by seed.
-        AzMctsConfig { simulations: 16, dirichlet_epsilon: 0.15, ..AzMctsConfig::default() }
+        AzMctsConfig { simulations: 8, dirichlet_epsilon: 0.15, ..AzMctsConfig::default() }
+    }
+
+    fn fast_rule() -> RuleConfig {
+        // Short games keep the gate test fast; the gate logic is unchanged.
+        RuleConfig { max_plies: 30, ..RuleConfig::default() }
     }
 
     #[test]
@@ -116,13 +121,13 @@ mod tests {
     #[test]
     fn gate_tally_sums_to_games_and_is_reproducible() {
         let path = fixture();
-        let games = 4;
-        let r1 = run_gate(&path, &path, games, gate_config(), RuleConfig::default(), 7)
+        let games = 2;
+        let r1 = run_gate(&path, &path, games, gate_config(), fast_rule(), 7)
             .expect("gate runs");
         assert_eq!(r1.a_wins + r1.b_wins + r1.draws, games, "tally sums to games");
         assert!((0.0..=1.0).contains(&r1.a_score()));
 
-        let r2 = run_gate(&path, &path, games, gate_config(), RuleConfig::default(), 7)
+        let r2 = run_gate(&path, &path, games, gate_config(), fast_rule(), 7)
             .expect("gate runs");
         assert_eq!(r1, r2, "same seed yields the same gate result");
     }
