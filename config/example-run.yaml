@@ -1,0 +1,38 @@
+configs:
+  - name: Dragon-default
+    config:
+      spire: Dragon
+      first_turn_ap: 2
+      capture_lock: false
+      keystone_single_move: false
+      max_plies: 400
+      repetition_fold: 3
+  - name: Queen-spire
+    config:
+      spire: Queen
+      first_turn_ap: 2
+      capture_lock: false
+      keystone_single_move: false
+      max_plies: 400
+      repetition_fold: 3
+  - name: capture-lock-on
+    config:
+      spire: Dragon
+      first_turn_ap: 2
+      capture_lock: true
+      keystone_single_move: false
+      max_plies: 400
+      repetition_fold: 3
+  - name: keystone-single-move-on
+    config:
+      spire: Dragon
+      first_turn_ap: 2
+      capture_lock: false
+      keystone_single_move: true
+      max_plies: 400
+      repetition_fold: 3
+
+games_per_config: 100
+seed: 42
+p1_policy: Random
+p2_policy: Random

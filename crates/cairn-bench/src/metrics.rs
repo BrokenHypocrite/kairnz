@@ -1,7 +1,3 @@
-// Public API items are used in tests and will be called from main once the
-// harness is wired up in Task 20; suppress dead-code warnings until then.
-#![allow(dead_code)]
-
 use std::collections::BTreeMap;
 
 use cairn_core::{
