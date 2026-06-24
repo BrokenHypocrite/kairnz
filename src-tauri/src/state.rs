@@ -184,7 +184,10 @@ mod tests {
     #[test]
     fn apply_illegal_action_returns_err_without_mutating() {
         let store = default_store();
-        let (id, view_before) = store.new_game(RuleConfig::default());
+        let (id, _) = store.new_game(RuleConfig::default());
+
+        // Capture the full game view before the illegal action.
+        let before = store.get_view(id).expect("get_view must succeed");
 
         // Move from an empty square is always illegal.
         let empty_sq = Sq::new(4, 4).unwrap();
@@ -196,15 +199,24 @@ mod tests {
         let result = store.apply_action(id, illegal);
         assert!(result.is_err(), "illegal action must return Err");
 
-        // State must be unchanged.
-        let view_after = store.get_view(id).expect("get_view must succeed after failed apply");
+        // Capture the game view after the failed action.
+        let after = store.get_view(id).expect("get_view must succeed after failed apply");
+
+        // Entire board must be unchanged.
+        assert_eq!(before.board, after.board, "board must be unchanged");
+
+        // Turn state and reserves must also be unchanged.
         assert_eq!(
-            view_before.ap_remaining, view_after.ap_remaining,
+            before.ap_remaining, after.ap_remaining,
             "AP must be unchanged"
         );
         assert_eq!(
-            view_before.to_move, view_after.to_move,
+            before.to_move, after.to_move,
             "to_move must be unchanged"
+        );
+        assert_eq!(
+            before.reserves, after.reserves,
+            "reserves must be unchanged"
         );
     }
 

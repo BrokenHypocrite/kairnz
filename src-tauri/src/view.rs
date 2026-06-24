@@ -5,7 +5,7 @@ use cairn_core::piece::{PieceKind, Player};
 use serde::Serialize;
 
 /// A piece as seen by the UI.
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct PieceView {
     /// The player who owns this piece.
     pub owner: Player,
@@ -18,7 +18,7 @@ pub struct PieceView {
 /// A snapshot of game state sent to the UI.
 ///
 /// `board` has exactly 81 entries in square-index order (index = rank*9 + file).
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct GameView {
     /// Board squares, one entry per square in index order; `None` means empty.
     pub board: Vec<Option<PieceView>>,
