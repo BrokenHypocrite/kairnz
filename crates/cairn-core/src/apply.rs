@@ -153,22 +153,104 @@ fn apply_move(pos: &mut Position, from: Sq, to: Sq) -> Result<ActionOutcome, Ill
     })
 }
 
-/// Placeholder for Task 10: Place action is not yet implemented.
-///
-/// This stub keeps the public signature of `apply_action` stable so Task 10
-/// can fill this function body without touching the `Move` path.
-fn apply_place(_pos: &mut Position, _to: Sq) -> Result<ActionOutcome, IllegalAction> {
-    // TODO(task-10): implement Place action (place a piece from reserve onto an empty square).
-    Err(IllegalAction::EmptyReserve)
+/// Maximum height a Stone must be at or below to accept a stack token.
+const STACK_MAX_SOURCE_HEIGHT: u8 = 2;
+
+/// Executes a Place action: validates reserve and target vacancy, places a new
+/// height-1 Stone owned by the mover, decrements AP by 1, recomputes the Zobrist
+/// hash, and increments ply.
+fn apply_place(pos: &mut Position, to: Sq) -> Result<ActionOutcome, IllegalAction> {
+    // Require at least 1 AP.
+    if pos.turn.ap_remaining < 1 {
+        return Err(IllegalAction::NoAp);
+    }
+
+    let mover = pos.to_move;
+
+    // Reserve must be non-empty.
+    if pos.reserves[mover.index()] == 0 {
+        return Err(IllegalAction::EmptyReserve);
+    }
+
+    // Target square must be vacant.
+    if pos.piece_at(to).is_some() {
+        return Err(IllegalAction::TargetNotEmpty);
+    }
+
+    // --- Mutation ---
+
+    pos.reserves[mover.index()] -= 1;
+    pos.board[to.0 as usize] = Some(crate::piece::Piece::new(mover, PieceKind::Stone, 1));
+
+    let cost = action_cost(&Action::Place { to });
+    debug_assert!(
+        pos.turn.ap_remaining >= cost,
+        "AP underflow: validation must ensure ap_remaining >= cost before decrement"
+    );
+    pos.turn.ap_remaining -= cost;
+
+    pos.zobrist = zobrist_full(pos);
+    pos.ply += 1;
+
+    Ok(ActionOutcome {
+        captured: None,
+        turn_ended: pos.turn.ap_remaining == 0,
+        ended_on_check: false,
+        result: None,
+    })
 }
 
-/// Placeholder for Task 10: Stack action is not yet implemented.
-///
-/// This stub keeps the public signature of `apply_action` stable so Task 10
-/// can fill this function body without touching the `Move` path.
-fn apply_stack(_pos: &mut Position, _target: Sq) -> Result<ActionOutcome, IllegalAction> {
-    // TODO(task-10): implement Stack action (place from reserve onto an own Stone, increasing height).
-    Err(IllegalAction::NotStackable)
+/// Executes a Stack action: validates AP (needs 2), reserve, and that the target
+/// holds the mover's own Stone with height <= STACK_MAX_SOURCE_HEIGHT. Increments
+/// the Stone's height by 1, decrements reserve, costs 2 AP (exhausting the turn),
+/// recomputes the Zobrist hash, and increments ply.
+fn apply_stack(pos: &mut Position, target: Sq) -> Result<ActionOutcome, IllegalAction> {
+    // Stack costs the whole 2-AP turn budget.
+    if pos.turn.ap_remaining < 2 {
+        return Err(IllegalAction::NeedsTwoAp);
+    }
+
+    let mover = pos.to_move;
+
+    // Reserve must be non-empty.
+    if pos.reserves[mover.index()] == 0 {
+        return Err(IllegalAction::EmptyReserve);
+    }
+
+    // Target must hold the mover's own Stone with height <= STACK_MAX_SOURCE_HEIGHT.
+    // Rejects: empty square, enemy piece, Keystone, or height-3 Stone.
+    let occupant = match pos.piece_at(target) {
+        Some(pc)
+            if pc.owner == mover
+                && pc.kind == PieceKind::Stone
+                && pc.height <= STACK_MAX_SOURCE_HEIGHT =>
+        {
+            pc
+        }
+        _ => return Err(IllegalAction::NotStackable),
+    };
+
+    // --- Mutation ---
+
+    pos.reserves[mover.index()] -= 1;
+    pos.board[target.0 as usize] = Some(crate::piece::Piece::new(mover, PieceKind::Stone, occupant.height + 1));
+
+    let cost = action_cost(&Action::Stack { target });
+    debug_assert!(
+        pos.turn.ap_remaining >= cost,
+        "AP underflow: validation must ensure ap_remaining >= cost before decrement"
+    );
+    pos.turn.ap_remaining -= cost;
+
+    pos.zobrist = zobrist_full(pos);
+    pos.ply += 1;
+
+    Ok(ActionOutcome {
+        captured: None,
+        turn_ended: true,
+        ended_on_check: false,
+        result: None,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -492,5 +574,217 @@ mod tests {
             .expect_err("keystone that already moved must not move again");
 
         assert_eq!(err, IllegalAction::KeystoneAlreadyMoved);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Place tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn place_consumes_reserve_and_creates_height1_stone() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 3;
+        let target = sq(4, 4);
+
+        let outcome = apply_action(&mut pos, Action::Place { to: target })
+            .expect("place must be legal");
+
+        // Reserve decremented by 1.
+        assert_eq!(pos.reserves[Player::P1.index()], 2);
+        // A height-1 Stone owned by P1 appears at the target square.
+        let piece = pos.piece_at(target).expect("target must be occupied after Place");
+        assert_eq!(piece.owner, Player::P1);
+        assert_eq!(piece.kind, PieceKind::Stone);
+        assert_eq!(piece.height, 1);
+        // AP cost is 1.
+        assert_eq!(pos.turn.ap_remaining, 1);
+        // turn_ended false because 1 AP remains.
+        assert!(!outcome.turn_ended);
+        // Place cannot capture.
+        assert!(outcome.captured.is_none());
+    }
+
+    #[test]
+    fn place_on_occupied_square_is_illegal() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        let target = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Stone, 1));
+
+        let err = apply_action(&mut pos, Action::Place { to: target })
+            .expect_err("placing on an occupied square must be illegal");
+
+        assert_eq!(err, IllegalAction::TargetNotEmpty);
+        // Position must be unchanged.
+        assert_eq!(pos.reserves[Player::P1.index()], 1);
+    }
+
+    #[test]
+    fn place_with_empty_reserve_is_illegal() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 0;
+        let target = sq(4, 4);
+
+        let err = apply_action(&mut pos, Action::Place { to: target })
+            .expect_err("placing with empty reserve must be illegal");
+
+        assert_eq!(err, IllegalAction::EmptyReserve);
+    }
+
+    #[test]
+    fn place_with_no_ap_is_illegal() {
+        let mut pos = empty_pos_with_ap(0);
+        pos.reserves[Player::P1.index()] = 1;
+
+        let err = apply_action(&mut pos, Action::Place { to: sq(4, 4) })
+            .expect_err("placing with 0 AP must be illegal");
+
+        assert_eq!(err, IllegalAction::NoAp);
+    }
+
+    #[test]
+    fn place_ply_increments_and_zobrist_changes() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        let ply_before = pos.ply;
+        let hash_before = pos.zobrist;
+
+        apply_action(&mut pos, Action::Place { to: sq(4, 4) })
+            .expect("place must be legal");
+
+        assert_eq!(pos.ply, ply_before + 1);
+        assert_ne!(pos.zobrist, hash_before);
+    }
+
+    #[test]
+    fn place_with_last_ap_ends_turn() {
+        let mut pos = empty_pos_with_ap(1);
+        pos.reserves[Player::P1.index()] = 1;
+
+        let outcome = apply_action(&mut pos, Action::Place { to: sq(4, 4) })
+            .expect("place must be legal");
+
+        assert!(outcome.turn_ended);
+        assert_eq!(pos.turn.ap_remaining, 0);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Stack tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn stack_raises_height_and_costs_whole_turn() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 2;
+        let target = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 1));
+
+        let outcome = apply_action(&mut pos, Action::Stack { target })
+            .expect("stack must be legal");
+
+        // Height incremented from 1 to 2.
+        let piece = pos.piece_at(target).expect("target must still be occupied");
+        assert_eq!(piece.height, 2);
+        // Reserve decremented by 1.
+        assert_eq!(pos.reserves[Player::P1.index()], 1);
+        // AP is 0 (costs 2).
+        assert_eq!(pos.turn.ap_remaining, 0);
+        // Turn ended.
+        assert!(outcome.turn_ended);
+        // No capture.
+        assert!(outcome.captured.is_none());
+    }
+
+    #[test]
+    fn stack_onto_keystone_is_illegal() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        let target = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Keystone, 1));
+
+        let err = apply_action(&mut pos, Action::Stack { target })
+            .expect_err("stacking onto a Keystone must be illegal");
+
+        assert_eq!(err, IllegalAction::NotStackable);
+    }
+
+    #[test]
+    fn stack_with_one_ap_is_illegal() {
+        let mut pos = empty_pos_with_ap(1);
+        pos.reserves[Player::P1.index()] = 1;
+        let target = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 1));
+
+        let err = apply_action(&mut pos, Action::Stack { target })
+            .expect_err("stacking with only 1 AP must be illegal");
+
+        assert_eq!(err, IllegalAction::NeedsTwoAp);
+    }
+
+    #[test]
+    fn stack_onto_height_3_is_illegal() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        let target = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 3));
+
+        let err = apply_action(&mut pos, Action::Stack { target })
+            .expect_err("stacking onto a height-3 Stone must be illegal");
+
+        assert_eq!(err, IllegalAction::NotStackable);
+    }
+
+    #[test]
+    fn stack_onto_enemy_is_illegal() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        let target = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Stone, 1));
+
+        let err = apply_action(&mut pos, Action::Stack { target })
+            .expect_err("stacking onto an enemy piece must be illegal");
+
+        assert_eq!(err, IllegalAction::NotStackable);
+    }
+
+    #[test]
+    fn stack_onto_empty_is_illegal() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        let target = sq(4, 4);
+
+        let err = apply_action(&mut pos, Action::Stack { target })
+            .expect_err("stacking onto an empty square must be illegal");
+
+        assert_eq!(err, IllegalAction::NotStackable);
+    }
+
+    #[test]
+    fn stack_with_empty_reserve_is_illegal() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 0;
+        let target = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 1));
+
+        let err = apply_action(&mut pos, Action::Stack { target })
+            .expect_err("stacking with empty reserve must be illegal");
+
+        assert_eq!(err, IllegalAction::EmptyReserve);
+    }
+
+    #[test]
+    fn stack_ply_increments_and_zobrist_changes() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        let target = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 1));
+        let ply_before = pos.ply;
+        let hash_before = pos.zobrist;
+
+        apply_action(&mut pos, Action::Stack { target })
+            .expect("stack must be legal");
+
+        assert_eq!(pos.ply, ply_before + 1);
+        assert_ne!(pos.zobrist, hash_before);
     }
 }
