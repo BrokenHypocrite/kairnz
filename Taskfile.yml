@@ -20,3 +20,13 @@ tasks:
   onnx-check:
     cmds:
       - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cargo run -p kairnz-onnx --bin backend_check'
+
+  # Generate a self-play shard on the GPU. Override vars, e.g.
+  #   task selfplay MODEL=path/to/model.onnx OUT=data/shard0.safetensors GAMES=16
+  selfplay:
+    vars:
+      MODEL: '{{.MODEL | default "crates/kairnz-onnx/tests/fixtures/random_init.onnx"}}'
+      OUT: '{{.OUT | default "selfplay-shard.safetensors"}}'
+      GAMES: '{{.GAMES | default 8}}'
+    cmds:
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cargo run -p kairnz-selfplay --bin selfplay --release -- --model "{{.MODEL}}" --out "{{.OUT}}" --games {{.GAMES}}'
