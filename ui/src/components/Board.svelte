@@ -113,16 +113,6 @@
 </div>
 
 <style>
-  :root {
-    --board-light: #f0d9b5;
-    --board-dark: #b58863;
-    --board-border: #5a3e28;
-    --grid-line: #5a3e2855;
-    --piece-p1: #e8d5a3;
-    --piece-p2: #8b4513;
-    --piece-stroke: #2a2a2a;
-  }
-
   .board-wrapper {
     display: inline-block;
     border: 3px solid var(--board-border);

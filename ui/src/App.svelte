@@ -44,6 +44,7 @@
     --piece-p1: #e8d5a3;
     --piece-p2: #8b4513;
     --piece-stroke: #2a2a2a;
+    --piece-stroke-w: 1px;
   }
 
   main {

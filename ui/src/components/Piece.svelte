@@ -132,16 +132,19 @@
   const rotate = $derived(piece.owner === 'P2' ? 'rotate(180 0 0)' : undefined);
 
   // Tooltip from names.yaml
-  const heightLabel = $derived(() => {
-    if (piece.kind === 'Keystone') return names.pieces.keystone;
-    if (piece.height >= 3) return names.pieces.spire;
-    if (piece.height === 2) return names.pieces.pillar;
-    return names.pieces.stone;
-  });
+  const heightLabel = $derived(
+    piece.kind === 'Keystone'
+      ? names.pieces.keystone
+      : piece.height >= 3
+        ? names.pieces.spire
+        : piece.height === 2
+          ? names.pieces.pillar
+          : names.pieces.stone
+  );
   const ownerLabel = $derived(
     piece.owner === 'P1' ? names.players.P1 : names.players.P2
   );
-  const tooltipText = $derived(`${ownerLabel} ${heightLabel()}`);
+  const tooltipText = $derived(`${ownerLabel} ${heightLabel}`);
 
   // Stroke width scales with cell
   const strokeW = $derived(cellSize * 0.03);
