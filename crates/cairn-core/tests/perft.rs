@@ -68,6 +68,9 @@ fn depth2_sum_first_turn_ap2() {
 // AP=1 and AP=2 yield the same opening count (27) because the standard position
 // has no reserves, so Stack actions (which require reserve) never appear at depth 1
 // regardless of AP budget.
+//
+// Recomputed after correcting keystone placement to symmetric files 2/6
+// (the 3rd and 7th files, 0-indexed). Depth-2 sum changed from 787 to 788.
 const EXPECTED_AP1: usize = 27;
 const EXPECTED_AP2: usize = 27;
-const EXPECTED_DEPTH2_SUM: usize = 787;
+const EXPECTED_DEPTH2_SUM: usize = 788;

@@ -4,9 +4,9 @@ use crate::square::{BitBoard81, Sq, NUM_SQUARES};
 use crate::zobrist::zobrist_full;
 
 /// File index of the left keystone starting position.
-const KEYSTONE_FILE_LEFT: u8 = 3;
+const KEYSTONE_FILE_LEFT: u8 = 2;
 /// File index of the right keystone starting position.
-const KEYSTONE_FILE_RIGHT: u8 = 7;
+const KEYSTONE_FILE_RIGHT: u8 = 6;
 
 /// Rank index where P1's front row of stones starts.
 const P1_RANK_FRONT: u8 = 0;
@@ -158,9 +158,9 @@ mod tests {
     }
 
     #[test]
-    fn keystones_on_files_3_and_7_rank_index_1() {
+    fn keystones_on_files_2_and_6_rank_index_1() {
         let p = Position::new_standard(RuleConfig::default());
-        for f in [3u8, 7] {
+        for f in [2u8, 6] {
             let s = Sq::new(f, 1).unwrap();
             assert!(
                 matches!(p.piece_at(s), Some(pc) if pc.kind == PieceKind::Keystone && pc.owner == Player::P1)
@@ -169,9 +169,9 @@ mod tests {
     }
 
     #[test]
-    fn p2_keystones_on_files_3_and_7_rank_index_7() {
+    fn p2_keystones_on_files_2_and_6_rank_index_7() {
         let p = Position::new_standard(RuleConfig::default());
-        for f in [3u8, 7] {
+        for f in [2u8, 6] {
             let s = Sq::new(f, 7).unwrap();
             assert!(matches!(p.piece_at(s), Some(pc) if pc.kind == PieceKind::Keystone && pc.owner == Player::P2));
         }
