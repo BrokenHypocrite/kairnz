@@ -44,12 +44,25 @@ tasks:
       - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; uv run python scripts/train.py --shards "../{{.SHARDS}}" --out "../{{.OUT}}" --epochs {{.EPOCHS}}'
 
   # Run the full AlphaZero training loop (self-play -> train -> gate -> promote).
-  # Long-running; override iterations/games, e.g.
-  #   task loop ITERS=20 GAMES=128
+  # Long-running; override any dial, e.g.
+  #   task loop ITERS=20 GAMES=64 SIMS=100 FILTERS=64 BLOCKS=5 THREADS=8
   loop:
     vars:
       WORK: '{{.WORK | default "loop-run"}}'
       ITERS: '{{.ITERS | default 10}}'
       GAMES: '{{.GAMES | default 64}}'
+      SIMS: '{{.SIMS | default 200}}'
+      GATE_GAMES: '{{.GATE_GAMES | default 40}}'
+      EPOCHS: '{{.EPOCHS | default 10}}'
+      FILTERS: '{{.FILTERS | default 64}}'
+      BLOCKS: '{{.BLOCKS | default 5}}'
+      THREADS: '{{.THREADS | default 0}}'
     cmds:
-      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; uv run python scripts/loop.py --work "../{{.WORK}}" --iterations {{.ITERS}} --selfplay-games {{.GAMES}}'
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; uv run python scripts/loop.py --work "../{{.WORK}}" --iterations {{.ITERS}} --selfplay-games {{.GAMES}} --selfplay-sims {{.SIMS}} --gate-games {{.GATE_GAMES}} --epochs {{.EPOCHS}} --filters {{.FILTERS}} --blocks {{.BLOCKS}} --threads {{.THREADS}}'
+
+  # Open the live training status window (point it at the same WORK dir as the loop).
+  status:
+    vars:
+      WORK: '{{.WORK | default "loop-run"}}'
+    cmds:
+      - powershell -NoProfile -Command 'cd train; uv run python scripts/status_window.py --work "../{{.WORK}}"'
