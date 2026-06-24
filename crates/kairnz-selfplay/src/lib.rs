@@ -1,5 +1,6 @@
 //! Self-play data generation for the Kairnz AlphaZero pipeline.
 
+pub mod gate;
 pub mod sample;
 pub mod play;
 pub mod shard;
