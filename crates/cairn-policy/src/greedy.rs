@@ -59,6 +59,7 @@ impl Policy for GreedyPolicy {
             }
         }
 
+        // Defensive fallback: unreachable in practice since actions is non-empty.
         if best_actions.is_empty() {
             return None;
         }
@@ -89,8 +90,7 @@ mod tests {
         Sq::new(file, rank).unwrap()
     }
 
-    /// Build a minimal Game from a raw Position, seeding history with the
-    /// position's current Zobrist hash.
+    /// Build a minimal Game from a raw Position.
     fn game_from_pos(pos: Position) -> Game {
         // Game::new_standard is the only public constructor, but we can reproduce
         // any position by building a standard game and replacing its fields.
@@ -103,18 +103,14 @@ mod tests {
         // from the game tests. Since Game has no public from_pos constructor we
         // use new_standard and then manipulate the public pos field in-place.
         // This is safe for tests that construct clean positions.
-        let initial_hash = pos.zobrist;
         // SAFETY NOTE: We rely on cairn_core::game::Game having public `pos`
         // field and Clone derive added in this task. We construct via new_standard
         // to get a valid shell, then overwrite pos. History is seeded manually.
         // In tests this approach is acceptable per the existing test pattern in game.rs.
         let mut game = Game::new_standard(RuleConfig::default());
         game.pos = pos;
-        // Clear and re-seed history with this position's hash.
-        // Since history is private, we use the public apply pathway by note: we just
-        // need a Game that holds our position. The history mismatch won't affect
-        // greedy correctness because greedy only reads game.pos and clones from it.
-        let _ = initial_hash; // used conceptually
+        // History mismatch won't affect greedy correctness because greedy only
+        // reads game.pos and clones from it.
         game
     }
 
@@ -200,6 +196,35 @@ mod tests {
         let a = GreedyPolicy::seeded(99).choose(&game);
         let b = GreedyPolicy::seeded(99).choose(&game);
         assert_eq!(a, b, "same seed must produce the same action from the same position");
+    }
+
+    /// Prove that the RNG genuinely drives tie-break selection among equal-scoring moves.
+    /// The standard opening position is symmetric, so many opening moves score equally
+    /// under evaluate, causing tie-breaking to fire. If tie-breaking regressed to
+    /// "always pick the first max-scoring action", every seed would yield the same action.
+    /// This test verifies that different seeds choose different actions, proving the RNG
+    /// is actually used for tie-breaking.
+    #[test]
+    fn greedy_tiebreak_varies_with_seed() {
+        let game = Game::new_standard(RuleConfig::default());
+        let mut chosen_actions: Vec<Action> = Vec::new();
+
+        // Try many different seeds and collect the chosen actions.
+        for seed in 0..30 {
+            if let Some(action) = GreedyPolicy::seeded(seed).choose(&game) {
+                chosen_actions.push(action);
+            }
+        }
+
+        // Count distinct actions by checking if we see more than one unique action.
+        // If tie-breaking were broken (always picking first), all seeds would choose
+        // the same action. Assert that we see more than one distinct action,
+        // proving the RNG selects among ties.
+        let has_distinct = chosen_actions.windows(2).any(|w| w[0] != w[1]);
+        assert!(
+            has_distinct,
+            "RNG must break ties; expected distinct actions across different seeds"
+        );
     }
 
     /// The name method returns the expected identifier.
