@@ -44,7 +44,7 @@ impl BitBoard81 {
 
     /// Clears the bit corresponding to `sq`.
     pub fn clear(&mut self, sq: Sq) {
-        self.0 &= !(1u128 << sq.0);
+        self.0 &= !(1u128 << sq.0) & BOARD_MASK;
     }
 
     /// Returns `true` if the bit for `sq` is set.
@@ -93,6 +93,7 @@ mod tests {
     #[test]
     fn sq_rejects_out_of_range() {
         assert!(Sq::new(9, 0).is_none());
+        assert!(Sq::new(0, 9).is_none());
     }
 
     #[test]
