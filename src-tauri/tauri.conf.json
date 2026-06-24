@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "identifier": "com.cairn.app",
   "build": {
-    "beforeBuildCommand": "",
-    "beforeDevCommand": "",
+    "beforeDevCommand": "pnpm --dir ui dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm --dir ui build",
     "frontendDist": "../ui/dist"
   },
   "app": {
