@@ -36,10 +36,10 @@ const RESERVE_TABLE_SIZE: usize = MAX_RESERVE + 1;
 // Seed constants (arbitrary fixed values; must never change across versions)
 // ---------------------------------------------------------------------------
 
-const SEED_PIECE_BASE: u64 = 0x9e37_79b9_7f4a_7c15;
+const SEED_PIECE_BASE: u64 = 0xC3A5_C85C_97CB_3127;
 const SEED_SIDE_TO_MOVE: u64 = 0x6c62_272e_07bb_0142;
-const SEED_RESERVE_P1: u64 = 0xbf58_476d_1ce4_e5b9;
-const SEED_RESERVE_P2: u64 = 0x94d0_49bb_1331_11eb;
+const SEED_RESERVE_P1: u64 = 0xB492_B66F_BE98_F273;
+const SEED_RESERVE_P2: u64 = 0x9AE1_6A3B_2F90_404F;
 
 // ---------------------------------------------------------------------------
 // splitmix64 -- deterministic, non-crypto mixer used only at table init time
@@ -67,16 +67,16 @@ const fn mix(seed: u64, slot: u64) -> u64 {
 /// Keys for piece placement: indexed [square][player][kind][height_clamped].
 ///
 /// Dimensions: NUM_SQUARES x NUM_PLAYERS x NUM_PIECE_KINDS x (MAX_HEIGHT + 1).
-struct PieceKeys([[[[u64; MAX_HEIGHT + 1]; NUM_PIECE_KINDS]; NUM_PLAYERS]; NUM_SQUARES]);
+pub(crate) struct PieceKeys([[[[u64; MAX_HEIGHT + 1]; NUM_PIECE_KINDS]; NUM_PLAYERS]; NUM_SQUARES]);
 
 /// Keys for side-to-move: index 0 = P1, 1 = P2.
-struct SideKeys([u64; NUM_PLAYERS]);
+pub(crate) struct SideKeys([u64; NUM_PLAYERS]);
 
 /// Keys for reserve counts: indexed [player][count_clamped].
-struct ReserveKeys([[u64; RESERVE_TABLE_SIZE]; NUM_PLAYERS]);
+pub(crate) struct ReserveKeys([[u64; RESERVE_TABLE_SIZE]; NUM_PLAYERS]);
 
 /// The complete Zobrist key table.
-pub struct ZobristTable {
+pub(crate) struct ZobristTable {
     piece: PieceKeys,
     side: SideKeys,
     reserve: ReserveKeys,
@@ -140,12 +140,12 @@ impl ZobristTable {
     }
 }
 
-/// The global key table, constructed once at program start from fixed seeds.
-static TABLE: std::sync::OnceLock<ZobristTable> = std::sync::OnceLock::new();
+/// The global key table, constructed at compile time from fixed seeds.
+static TABLE: ZobristTable = ZobristTable::new();
 
 /// Returns a reference to the shared key table.
 fn table() -> &'static ZobristTable {
-    TABLE.get_or_init(ZobristTable::new)
+    &TABLE
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +186,7 @@ pub fn zobrist_full(pos: &Position) -> u64 {
 // Index helpers
 // ---------------------------------------------------------------------------
 
-/// Maps a `PieceKind` to a table index.
+/// Maps a `PieceKind` to a table index (0 for Stone, 1 for Keystone).
 fn kind_index(k: PieceKind) -> usize {
     match k {
         PieceKind::Stone => 0,
@@ -194,7 +194,7 @@ fn kind_index(k: PieceKind) -> usize {
     }
 }
 
-/// Maps a `Player` to a side-to-move table index.
+/// Maps a `Player` to a side-to-move table index (0 for P1, 1 for P2).
 fn side_index(p: Player) -> usize {
     match p {
         Player::P1 => 0,
@@ -255,5 +255,19 @@ mod tests {
         let sq = crate::square::Sq::new(4, 4).unwrap();
         pos.board[sq.0 as usize] = Some(Piece::new(Player::P1, PieceKind::Stone, 1));
         assert_ne!(zobrist_full(&pos), h0);
+    }
+
+    #[test]
+    fn piece_keys_differ_by_height() {
+        let t = table();
+        // Keys for the same piece at the same square/player/kind but different heights must differ.
+        assert_ne!(t.piece.0[0][0][0][1], t.piece.0[0][0][0][2]);
+    }
+
+    #[test]
+    fn piece_keys_differ_by_owner() {
+        let t = table();
+        // Keys for the same piece at the same square/kind/height but different owners must differ.
+        assert_ne!(t.piece.0[0][0][0][1], t.piece.0[0][1][0][1]);
     }
 }
