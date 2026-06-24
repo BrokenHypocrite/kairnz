@@ -1,0 +1,19 @@
+dragon-default:
+  label: Dragon (default)
+  config:
+    spire: Dragon
+    first_turn_ap: 2
+    capture_lock: false
+    keystone_single_move: false
+    max_plies: 400
+    repetition_fold: 3
+
+queen:
+  label: Queen
+  config:
+    spire: Queen
+    first_turn_ap: 2
+    capture_lock: false
+    keystone_single_move: false
+    max_plies: 400
+    repetition_fold: 3

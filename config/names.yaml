@@ -1,0 +1,9 @@
+game: Cairn
+pieces:
+  stone: Stone
+  pillar: Pillar
+  spire: Spire
+  keystone: Keystone
+players:
+  P1: Player 1
+  P2: Player 2
