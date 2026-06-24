@@ -1,6 +1,5 @@
-use crate::actions::{legal_actions, Action};
+use crate::actions::{legal_actions, Action, IllegalAction};
 use crate::apply::{apply_action, ActionOutcome};
-use crate::actions::IllegalAction;
 use crate::config::RuleConfig;
 use crate::outcome::{DrawReason, GameResult};
 use crate::piece::Player;
@@ -85,11 +84,6 @@ impl Game {
         outcome.result = self.terminal_result();
 
         Ok(outcome)
-    }
-
-    /// Returns the terminal result if the game is over, or `None` if it continues.
-    pub fn result(&self) -> Option<GameResult> {
-        self.terminal_result()
     }
 
     /// Returns the player whose turn it is to move.
@@ -184,42 +178,12 @@ mod tests {
     // Test: no legal action at turn start -> loss
     // ---------------------------------------------------------------------------
 
-    /// At the start of their turn, the player to move has zero legal actions -> they lose.
-    ///
-    /// Construction: P1 has a single Keystone with `keystone_single_move=true` and
-    /// the Keystone has already-moved bit set (simulating the start of a new turn
-    /// where the Keystone was already counted as having moved -- i.e., we set the
-    /// bit manually). Reserve=0, no other P1 pieces. P2 has a Keystone elsewhere.
-    ///
-    /// Note: `keystone_moved` is cleared by `advance_turn`. To simulate a turn
-    /// boundary where this matters, we instead use a Keystone surrounded on all
-    /// reachable squares by P1 own Stones (all 3 reachable squares from corner (0,0):
-    /// (1,0), (0,1), (1,1)), AND we ensure none of those Stones have any legal
-    /// moves either. We do that by surrounding all of them with the board edge and
-    /// other P1 Stones.
-    ///
-    /// Full cage: P1 occupies a 2x2 block in the corner:
-    ///   (0,0)=Keystone, (1,0)=Stone, (0,1)=Stone, (1,1)=Stone
-    ///   Stones at (1,0): can reach (2,0), (1,1)[P1 blocked]. Add P1 Stone at (2,0).
-    ///   Stone at (0,1): can reach (0,2), (1,1)[P1 blocked]. Add P1 Stone at (0,2).
-    ///   Stone at (1,1): can reach (2,1), (1,2), (0,1)[P1 blocked], (1,0)[P1 blocked].
-    ///     Add P1 Stones at (2,1) and (1,2).
-    ///   Stone at (2,0): can reach (3,0), (2,1)[P1 blocked]. Add P1 Stone at (3,0).
-    ///   Stone at (0,2): can reach (0,3), (1,2)[P1 blocked]. Add P1 Stone at (0,3).
-    ///   Stone at (2,1): can reach (3,1), (2,2), (2,0)[P1 blocked], (2,1)-diag blocked by config...
-    ///     Wait: h1 Stones only move orthogonally. So (2,1) can reach (3,1),(1,1)[P1],(2,2),(2,0)[P1].
-    ///     Add P1 Stones at (3,1) and (2,2).
-    ///   Stone at (1,2): can reach (0,2)[P1],(2,2)[P1],(1,3),(1,1)[P1]. Add Stone at (1,3).
-    ///   Stone at (3,0): can reach (4,0),(3,1)[P1]. Add Stone at (4,0).
-    ///   Stone at (0,3): can reach (1,3)[need to check],(0,4). Add Stones at (1,3) if not
-    ///     already there, and (0,4).
-    ///
-    /// This gets complex. Simpler: use `keystone_single_move=true` AND pre-set the
-    /// `keystone_moved` bit to simulate a position where P1's only piece is already
-    /// flagged as moved. But `advance_turn` clears this bit, so at the start of a real
-    /// turn the bit would be clear. We're calling `terminal_result` directly without
-    /// going through `advance_turn`, so manually setting the bit is fine for testing
-    /// the LOSS condition itself (which only calls `legal_actions`).
+    /// Directly exercises `terminal_result`'s contract: a position where the player to move
+    /// has ZERO legal actions yields `Win(opponent)`. The zero-action state is constructed
+    /// synthetically (the explicit `assert!(legal_actions(...).is_empty())` precondition
+    /// guarantees it is genuinely zero-action), because a player holding a Keystone always
+    /// has at least one legal move unless every friendly piece is sealed in — a configuration
+    /// that cannot be built on an open 9x9 board, so no reachable-state construction exists.
     #[test]
     fn no_legal_action_at_turn_start_loses() {
         let mut cfg = RuleConfig::default();
