@@ -1,0 +1,6 @@
+version: '3'
+tasks:
+  build: { cmds: ["cargo build --workspace"] }
+  test: { cmds: ["cargo test --workspace"] }
+  bench: { cmds: ["cargo run -p cairn-bench --"] }
+  ui: { dir: ui, cmds: ["pnpm install", "pnpm tauri dev"] }

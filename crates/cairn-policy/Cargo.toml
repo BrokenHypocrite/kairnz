@@ -1,0 +1,12 @@
+[package]
+name = "cairn-policy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cairn-core = { path = "../cairn-core" }
+rand = { workspace = true }
+rand_pcg = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"
