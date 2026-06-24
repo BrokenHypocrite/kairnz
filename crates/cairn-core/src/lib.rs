@@ -1,3 +1,6 @@
+pub mod piece;
+pub mod square;
+
 #[cfg(test)]
 mod smoke {
     #[test]
