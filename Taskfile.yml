@@ -42,3 +42,14 @@ tasks:
       EPOCHS: '{{.EPOCHS | default 10}}'
     cmds:
       - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; uv run python scripts/train.py --shards "../{{.SHARDS}}" --out "../{{.OUT}}" --epochs {{.EPOCHS}}'
+
+  # Run the full AlphaZero training loop (self-play -> train -> gate -> promote).
+  # Long-running; override iterations/games, e.g.
+  #   task loop ITERS=20 GAMES=128
+  loop:
+    vars:
+      WORK: '{{.WORK | default "loop-run"}}'
+      ITERS: '{{.ITERS | default 10}}'
+      GAMES: '{{.GAMES | default 64}}'
+    cmds:
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; uv run python scripts/loop.py --work "../{{.WORK}}" --iterations {{.ITERS}} --selfplay-games {{.GAMES}}'
