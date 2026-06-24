@@ -9,7 +9,8 @@ use crate::{BOARD_CELLS, NUM_PLANES};
 
 /// Normalizer for the action-points plane (max AP per turn).
 const AP_NORM: f32 = 2.0;
-/// Normalizer for reserve-count planes (an upper bound on a player's stones).
+/// Soft normalizer for reserve-count planes. Reserves can exceed this in
+/// capture-heavy games, so the reserve planes are clamped to [0, 1].
 const RESERVE_NORM: f32 = 18.0;
 /// Normalizer for the repetition plane (default repetition-fold threshold).
 const REPETITION_NORM: f32 = 3.0;
@@ -64,8 +65,8 @@ pub fn encode_planes(pos: &Position, repetition_count: u8) -> Vec<f32> {
 
     // Scalar planes broadcast across every cell.
     let ap_val = pos.turn.ap_remaining as f32 / AP_NORM;
-    let my_reserve = pos.reserves[me.index()] as f32 / RESERVE_NORM;
-    let opp_reserve = pos.reserves[opp.index()] as f32 / RESERVE_NORM;
+    let my_reserve = (pos.reserves[me.index()] as f32 / RESERVE_NORM).min(1.0);
+    let opp_reserve = (pos.reserves[opp.index()] as f32 / RESERVE_NORM).min(1.0);
     let rep_val = repetition_count as f32 / REPETITION_NORM;
     for cell in 0..BOARD_CELLS {
         planes[CH_AP * BOARD_CELLS + cell] = ap_val;
@@ -134,5 +135,76 @@ mod tests {
             let cell = 1 * 9 + file;
             assert_eq!(planes[CH_MY_KEYSTONE * BOARD_CELLS + cell], 1.0);
         }
+    }
+
+    #[test]
+    fn turn_state_and_repetition_planes_encode_canonically() {
+        use kairnz_core::piece::Player;
+        use kairnz_core::position::TurnState;
+        use kairnz_core::square::{BitBoard81, Sq, NUM_SQUARES};
+
+        // P2 to move so the canonical rank-flip is exercised on the bitboards.
+        let locked = Sq::new(1, 0).unwrap(); // canonical (P2) -> rank 8, cell 73
+        let moved = Sq::new(3, 0).unwrap(); // canonical (P2) -> rank 8, cell 75
+        let mut capture_locked = BitBoard81::default();
+        capture_locked.set(locked);
+        let mut keystone_moved = BitBoard81::default();
+        keystone_moved.set(moved);
+
+        let pos = Position {
+            board: [None; NUM_SQUARES],
+            reserves: [0, 0],
+            to_move: Player::P2,
+            turn: TurnState {
+                ap_remaining: 2,
+                capture_locked,
+                keystone_moved,
+                enemy_checked_at_start: BitBoard81::default(),
+            },
+            config: RuleConfig::default(),
+            zobrist: 0,
+            ply: 0,
+        };
+
+        let planes = encode_planes(&pos, 3);
+
+        // capture_locked -> channel 11 at flipped cell 8*9 + 1 = 73.
+        assert_eq!(plane_sum(&planes, CH_CAPTURE_LOCKED), 1.0);
+        assert_eq!(planes[CH_CAPTURE_LOCKED * BOARD_CELLS + (8 * 9 + 1)], 1.0);
+        // keystone_moved -> channel 12 at flipped cell 8*9 + 3 = 75.
+        assert_eq!(plane_sum(&planes, CH_KEYSTONE_MOVED), 1.0);
+        assert_eq!(planes[CH_KEYSTONE_MOVED * BOARD_CELLS + (8 * 9 + 3)], 1.0);
+        // repetition_count 3 normalized by 3.0 -> 1.0 uniformly on channel 13.
+        assert!(planes[CH_REPETITION * BOARD_CELLS..(CH_REPETITION + 1) * BOARD_CELLS]
+            .iter()
+            .all(|v| (*v - 1.0).abs() < 1e-6));
+    }
+
+    #[test]
+    fn reserve_plane_is_clamped_to_one() {
+        use kairnz_core::piece::Player;
+        use kairnz_core::position::TurnState;
+        use kairnz_core::square::{BitBoard81, NUM_SQUARES};
+
+        let pos = Position {
+            board: [None; NUM_SQUARES],
+            reserves: [99, 0], // far exceeds RESERVE_NORM
+            to_move: Player::P1,
+            turn: TurnState {
+                ap_remaining: 2,
+                capture_locked: BitBoard81::default(),
+                keystone_moved: BitBoard81::default(),
+                enemy_checked_at_start: BitBoard81::default(),
+            },
+            config: RuleConfig::default(),
+            zobrist: 0,
+            ply: 0,
+        };
+
+        let planes = encode_planes(&pos, 0);
+        // 99 / 18 clamps to 1.0 across the whole my-reserve plane.
+        assert!(planes[CH_MY_RESERVE * BOARD_CELLS..(CH_MY_RESERVE + 1) * BOARD_CELLS]
+            .iter()
+            .all(|v| (*v - 1.0).abs() < 1e-6));
     }
 }
