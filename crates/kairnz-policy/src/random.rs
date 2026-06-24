@@ -1,4 +1,4 @@
-use cairn_core::{actions::{legal_actions, Action}, game::Game};
+use kairnz_core::{actions::{legal_actions, Action}, game::Game};
 use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;

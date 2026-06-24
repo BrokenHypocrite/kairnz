@@ -1,4 +1,4 @@
-use cairn_core::{actions::legal_actions, actions::Action, game::Game};
+use kairnz_core::{actions::legal_actions, actions::Action, game::Game};
 use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
@@ -77,7 +77,7 @@ impl Policy for GreedyPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cairn_core::{
+    use kairnz_core::{
         actions::Action,
         config::RuleConfig,
         game::Game,
@@ -103,7 +103,7 @@ mod tests {
         // from the game tests. Since Game has no public from_pos constructor we
         // use new_standard and then manipulate the public pos field in-place.
         // This is safe for tests that construct clean positions.
-        // SAFETY NOTE: We rely on cairn_core::game::Game having public `pos`
+        // SAFETY NOTE: We rely on kairnz_core::game::Game having public `pos`
         // field and Clone derive added in this task. We construct via new_standard
         // to get a valid shell, then overwrite pos. History is seeded manually.
         // In tests this approach is acceptable per the existing test pattern in game.rs.

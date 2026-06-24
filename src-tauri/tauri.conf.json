@@ -1,7 +1,7 @@
 {
-  "productName": "cairn",
+  "productName": "kairnz",
   "version": "0.1.0",
-  "identifier": "com.cairn.app",
+  "identifier": "com.kairnz.game",
   "build": {
     "beforeDevCommand": "pnpm --dir ui dev",
     "devUrl": "http://localhost:5173",
@@ -17,7 +17,7 @@
         "fullscreen": false,
         "height": 700,
         "resizable": true,
-        "title": "Cairn",
+        "title": "Kairnz",
         "width": 900
       }
     ]

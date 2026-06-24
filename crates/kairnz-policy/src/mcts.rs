@@ -1,4 +1,4 @@
-use cairn_core::{
+use kairnz_core::{
     actions::{legal_actions, Action},
     game::Game,
     outcome::GameResult,
@@ -220,7 +220,7 @@ impl MctsPolicy {
             if actions.is_empty() {
                 return game
                     .terminal_result()
-                    .unwrap_or(GameResult::Draw(cairn_core::outcome::DrawReason::MaxPlies));
+                    .unwrap_or(GameResult::Draw(kairnz_core::outcome::DrawReason::MaxPlies));
             }
             let idx = self.rng.gen_range(0..actions.len());
             let _ = game.apply(actions[idx]);
@@ -228,7 +228,7 @@ impl MctsPolicy {
                 return result;
             }
         }
-        GameResult::Draw(cairn_core::outcome::DrawReason::MaxPlies)
+        GameResult::Draw(kairnz_core::outcome::DrawReason::MaxPlies)
     }
 
     /// Walks from `node` back to the root, incrementing `visits` and adding
@@ -294,7 +294,7 @@ impl Policy for MctsPolicy {
 mod tests {
     use super::*;
     use crate::random::RandomPolicy;
-    use cairn_core::{
+    use kairnz_core::{
         actions::legal_actions,
         config::RuleConfig,
         outcome::GameResult,

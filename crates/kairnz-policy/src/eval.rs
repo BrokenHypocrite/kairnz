@@ -1,4 +1,4 @@
-use cairn_core::{
+use kairnz_core::{
     movement::move_targets,
     piece::{PieceKind, Player},
     position::Position,
@@ -45,7 +45,7 @@ pub fn evaluate(pos: &Position, perspective: Player) -> i32 {
     let mut opponent_mobile: i32 = 0;
 
     for i in 0..NUM_SQUARES {
-        let sq = cairn_core::square::Sq(i as u8);
+        let sq = kairnz_core::square::Sq(i as u8);
         let piece = match pos.board[i] {
             Some(p) => p,
             None => continue,
@@ -83,7 +83,7 @@ pub fn evaluate(pos: &Position, perspective: Player) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cairn_core::{config::RuleConfig, game::Game, piece::Player};
+    use kairnz_core::{config::RuleConfig, game::Game, piece::Player};
 
     #[test]
     fn evaluate_is_symmetric_on_initial_position() {

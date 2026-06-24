@@ -1,10 +1,10 @@
 [package]
-name = "cairn-policy"
+name = "kairnz-policy"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cairn-core = { path = "../cairn-core" }
+kairnz-core = { path = "../kairnz-core" }
 rand = { workspace = true }
 rand_pcg = { workspace = true }
 

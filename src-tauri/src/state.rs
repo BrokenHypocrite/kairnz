@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-use cairn_core::actions::{legal_actions, Action};
-use cairn_core::config::RuleConfig;
-use cairn_core::game::Game;
-use cairn_core::square::Sq;
+use kairnz_core::actions::{legal_actions, Action};
+use kairnz_core::config::RuleConfig;
+use kairnz_core::game::Game;
+use kairnz_core::square::Sq;
 
 use crate::view::{view_of, ApplyResult, GameView};
 
@@ -111,7 +111,7 @@ impl GameStore {
     /// Returns an empty Vec if the square is empty. Returns Err if `id` is unknown
     /// or the mutex is poisoned.
     pub fn piece_moves(&self, id: GameId, from: Sq) -> Result<Vec<Sq>, String> {
-        use cairn_core::movement::move_targets;
+        use kairnz_core::movement::move_targets;
         let guard = self.games.lock().map_err(|e| e.to_string())?;
         let entry = guard.get(&id).ok_or_else(|| format!("unknown game id {id}"))?;
         if entry.game.pos.piece_at(from).is_none() {
@@ -149,8 +149,8 @@ impl Default for GameStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cairn_core::actions::Action;
-    use cairn_core::square::Sq;
+    use kairnz_core::actions::Action;
+    use kairnz_core::square::Sq;
 
     fn default_store() -> GameStore {
         GameStore::new()
@@ -181,7 +181,7 @@ mod tests {
         // Turn state.
         assert_eq!(
             view.to_move,
-            cairn_core::piece::Player::P1,
+            kairnz_core::piece::Player::P1,
             "P1 moves first"
         );
         assert_eq!(view.ap_remaining, 2, "opening AP must be 2");
@@ -190,7 +190,7 @@ mod tests {
         // get_view must agree.
         let view2 = store.get_view(id).expect("get_view must succeed");
         assert_eq!(view2.board.len(), 81);
-        assert_eq!(view2.to_move, cairn_core::piece::Player::P1);
+        assert_eq!(view2.to_move, kairnz_core::piece::Player::P1);
     }
 
     /// Applying a clearly illegal action must return Err, and the game state
@@ -331,7 +331,7 @@ mod tests {
             .enumerate()
             .find_map(|(i, pc)| {
                 if let Some(p) = pc {
-                    if p.owner == cairn_core::piece::Player::P2 {
+                    if p.owner == kairnz_core::piece::Player::P2 {
                         return Some(Sq::new((i % 9) as u8, (i / 9) as u8).unwrap());
                     }
                 }

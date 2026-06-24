@@ -1,12 +1,12 @@
-# Cairn Phase 1 — Architecture & Design
+# Kairnz Phase 1 — Architecture & Design
 
 Status: approved (design); pending implementation plan
 Date: 2026-06-23
-Source of truth for rules: `CAIRN_SPEC.md`
+Source of truth for rules: `KAIRNZ_SPEC.md`
 
 ## Scope
 
-Phase 1 only, per `CAIRN_SPEC.md` §12:
+Phase 1 only, per `KAIRNZ_SPEC.md` §12:
 
 1. The Rust rules engine enforcing the complete rule set (§2–§7).
 2. Human vs Human play with full rule enforcement and a graphical SVG board (§8 mode 1).
@@ -29,21 +29,21 @@ Stack is fixed by the spec (§13): Rust + Tauri cross-platform desktop. Frontend
 ## Section 1 — Crate / workspace structure
 
 ```
-cairn/
+kairnz/
   Cargo.toml                 # workspace
   crates/
-    cairn-core/              # rules, state, move-gen, RuleConfig, Zobrist. NO I/O, NO Tauri, NO rng dependency.
-    cairn-policy/            # random, greedy, UCT MCTS. Depends on core + rng.
-    cairn-bench/             # headless CLI binary. Depends on core + policy. Emits metrics/report.
+    kairnz-core/              # rules, state, move-gen, RuleConfig, Zobrist. NO I/O, NO Tauri, NO rng dependency.
+    kairnz-policy/            # random, greedy, UCT MCTS. Depends on core + rng.
+    kairnz-bench/             # headless CLI binary. Depends on core + policy. Emits metrics/report.
   src-tauri/                 # Tauri app crate: thin commands wrapping core, holds Game state.
   ui/                        # Svelte 5 + Vite + TS SPA.
   config/                    # YAML: display names (§10) + default rule presets.
   docs/superpowers/specs/    # design docs
 ```
 
-`cairn-core` stays free of randomness, threads, and policy logic so it is trivially testable and reusable by every consumer (bench and Tauri now, AlphaZero in Phase 2). Policies live in a separate crate because they are consumers of the engine, shared by bench (Phase 1) and the Tauri app (Phase 3).
+`kairnz-core` stays free of randomness, threads, and policy logic so it is trivially testable and reusable by every consumer (bench and Tauri now, AlphaZero in Phase 2). Policies live in a separate crate because they are consumers of the engine, shared by bench (Phase 1) and the Tauri app (Phase 3).
 
-## Section 2 — Engine core (`cairn-core`)
+## Section 2 — Engine core (`kairnz-core`)
 
 ### Core types
 
@@ -126,7 +126,7 @@ Turn advances when `ap_remaining == 0`, the mover has no legal action, or the ch
 
 Engine returns `Result` with a typed `IllegalAction` enum; no panics, no `unwrap()`. Token conservation (board + reserves + permanently-removed keystones) is an invariant.
 
-## Section 3 — Policies (`cairn-policy`)
+## Section 3 — Policies (`kairnz-policy`)
 
 All operate on the action-level state, RNG-seeded for reproducibility.
 
@@ -138,7 +138,7 @@ All operate on the action-level state, RNG-seeded for reproducibility.
 
 Rust holds all game state (`Mutex<HashMap<GameId, Game>>`); the UI holds only a view copy and never computes legality.
 
-Command surface (thin wrappers over `cairn-core`):
+Command surface (thin wrappers over `kairnz-core`):
 
 - `new_game(config) -> GameView`
 - `legal_actions(game_id, from?) -> Vec<Action>`  (for highlighting a selected piece)
@@ -150,9 +150,9 @@ Errors map to serde-serializable responses; normally the UI prevents illegal act
 
 UI requirements (§8): SVG board showing stack heights; rule-toggle config panel driving `RuleConfig`; readouts for AP-remaining, both Reserve counts; legal-move dots on piece select; a clear banner when a turn auto-ends on check. Display names from `config/*.yaml`.
 
-**Ownership orientation (Shogi-style).** Because Reserve tokens change hands and a captured token re-enters play as the capturer's piece, on-board ownership must be unmistakable at a glance. Pieces use a directional, asymmetric glyph — an upward-tapering cairn/stone wedge appropriate to the game's theme — that points toward its owning player's side of the board (P1 pieces point one way, P2 pieces are rotated 180° to point the other), exactly as Shogi pieces face their owner. Orientation, not just color, conveys ownership, so the signal survives colorblindness and a glance. Stack height is layered within the same oriented glyph (Stone → Pillar → Spire), and Keystones get a distinct silhouette but share the directional orientation. The glyph shape is defined once and reused across all pieces.
+**Ownership orientation (Shogi-style).** Because Reserve tokens change hands and a captured token re-enters play as the capturer's piece, on-board ownership must be unmistakable at a glance. Pieces use a directional, asymmetric glyph — an upward-tapering stone-pile wedge appropriate to the game's theme — that points toward its owning player's side of the board (P1 pieces point one way, P2 pieces are rotated 180° to point the other), exactly as Shogi pieces face their owner. Orientation, not just color, conveys ownership, so the signal survives colorblindness and a glance. Stack height is layered within the same oriented glyph (Stone → Pillar → Spire), and Keystones get a distinct silhouette but share the directional orientation. The glyph shape is defined once and reused across all pieces.
 
-## Section 5 — Benchmark harness (`cairn-bench`, §8 mode 4)
+## Section 5 — Benchmark harness (`kairnz-bench`, §8 mode 4)
 
 Headless CLI taking a run spec (YAML): one or more `RuleConfig`s, games-per-config, seed, and the policy (with params) per side. Runs games deterministically and emits **both** a human-readable summary and machine-readable JSON, with a side-by-side comparison table when given multiple configs (directly serving "compare the §7 toggles").
 
@@ -171,7 +171,7 @@ Same seed → identical report (a tested invariant).
 
 TDD throughout.
 
-- `cairn-core`:
+- `kairnz-core`:
   - Per-movement-type tests: step/slide, Dragon vs Queen, friendly-block, displacement capture.
   - Capture → Reserve conservation: Spire yields 3 tokens; Keystone removed, not banked.
   - **Turn-ending-check suite** (heaviest): new threat via Move / Place / Stack each ends the turn; capturing an already-checked Keystone is allowed and may continue the turn; threatening the second Keystone ends the turn; own-Keystone-in-check is legal.
@@ -179,9 +179,9 @@ TDD throughout.
   - Win / no-legal-action-loss / draw (max-ply, repetition).
   - Perft-style move-generation counts as regression anchors.
   - Property tests (proptest): AP never negative; token conservation.
-- `cairn-bench`: same seed → identical report.
+- `kairnz-bench`: same seed → identical report.
 
 ## Phases 2 & 3 (high-level — Phase 1 leaves room)
 
 - **Phase 2 (AlphaZero self-play, §9):** consumes the same action-level `Position` and `Action` types. The per-action Move/Place/Stack space is the network's action encoding, and `to_move`-aware backprop is already the MCTS shape, so swapping random rollouts for a policy/value net is additive. Hybrid (Rust self-play + PyTorch training, ONNX export) vs all-Rust (tch/candle/burn) is deferred to Phase 2.
-- **Phase 3 (Human-vs-AI, AI-vs-AI, §8 modes 2–3):** reuses `cairn-policy` as the agent interface; a network-backed policy loads the Phase 2 checkpoint and drops into the existing Tauri modes with no engine change.
+- **Phase 3 (Human-vs-AI, AI-vs-AI, §8 modes 2–3):** reuses `kairnz-policy` as the agent interface; a network-backed policy loads the Phase 2 checkpoint and drops into the existing Tauri modes with no engine change.

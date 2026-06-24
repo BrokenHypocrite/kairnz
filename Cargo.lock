@@ -250,50 +250,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cairn-bench"
-version = "0.1.0"
-dependencies = [
- "cairn-core",
- "cairn-policy",
- "clap",
- "proptest",
- "serde",
- "serde_json",
- "serde_yaml",
-]
-
-[[package]]
-name = "cairn-core"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "serde",
- "serde_json",
- "serde_yaml",
-]
-
-[[package]]
-name = "cairn-policy"
-version = "0.1.0"
-dependencies = [
- "cairn-core",
- "proptest",
- "rand 0.8.6",
- "rand_pcg",
-]
-
-[[package]]
-name = "cairn-tauri"
-version = "0.1.0"
-dependencies = [
- "cairn-core",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
-]
-
-[[package]]
 name = "cairo-rs"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1732,6 +1688,50 @@ checksum = "5dea2b27dd239b2556ed7a25ba842fe47fd602e7fc7433c2a8d6106d4d9edd70"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kairnz-bench"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "kairnz-core",
+ "kairnz-policy",
+ "proptest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+]
+
+[[package]]
+name = "kairnz-core"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+]
+
+[[package]]
+name = "kairnz-policy"
+version = "0.1.0"
+dependencies = [
+ "kairnz-core",
+ "proptest",
+ "rand 0.8.6",
+ "rand_pcg",
+]
+
+[[package]]
+name = "kairnz-tauri"
+version = "0.1.0"
+dependencies = [
+ "kairnz-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use cairn_core::{
+use kairnz_core::{
     outcome::GameResult,
     piece::Player,
 };
@@ -162,8 +162,8 @@ pub fn aggregate(records: &[GameRecord]) -> Metrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cairn_core::outcome::{DrawReason, GameResult};
-    use cairn_core::piece::Player;
+    use kairnz_core::outcome::{DrawReason, GameResult};
+    use kairnz_core::piece::Player;
 
     /// Constructs a minimal GameRecord with the given result and plies.
     fn rec(result: GameResult, plies: u32) -> GameRecord {

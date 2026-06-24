@@ -1,12 +1,12 @@
-use cairn_core::{
+use kairnz_core::{
     config::RuleConfig,
     game::Game,
     outcome::{DrawReason, GameResult},
     piece::{PieceKind, Player},
 };
-use cairn_policy::policy::Policy;
+use kairnz_policy::policy::Policy;
 
-/// The number of squares on a Cairn board.
+/// The number of squares on a Kairnz board.
 const BOARD_SIZE: usize = 81;
 
 /// Raw signals recorded from a single headless game, used to derive balance metrics.
@@ -114,8 +114,8 @@ fn max_stone_height(game: &Game) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cairn_core::config::RuleConfig;
-    use cairn_policy::random::RandomPolicy;
+    use kairnz_core::config::RuleConfig;
+    use kairnz_policy::random::RandomPolicy;
 
     /// Returns the default config with an optional ply cap for faster tests.
     fn cfg() -> RuleConfig {
@@ -143,7 +143,7 @@ mod tests {
 
     /// A game won by keystone capture must have a recorded keystone loss.
     ///
-    /// A randomly-played Cairn game can sometimes end without any captures (e.g.
+    /// A randomly-played Kairnz game can sometimes end without any captures (e.g.
     /// draw by max-plies with all pieces shuffling). We therefore assert the
     /// weaker but always-valid invariant: if the result is a Win, the winner
     /// captured at least one Keystone, so `first_keystone_loss_by` is `Some`.

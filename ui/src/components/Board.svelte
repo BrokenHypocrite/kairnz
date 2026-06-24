@@ -1,5 +1,5 @@
 <!--
-  Board.svelte -- Renders a 9x9 SVG board for Cairn.
+  Board.svelte -- Renders a 9x9 SVG board for Kairnz.
 
   Interaction:
     - Left-click: onSquareClick(sq) for selection/move
@@ -120,7 +120,7 @@
     viewBox="{-LABEL_MARGIN} 0 {BOARD_SIZE + LABEL_MARGIN} {BOARD_SIZE + LABEL_MARGIN}"
     class="board-svg"
     role="img"
-    aria-label="Cairn game board"
+    aria-label="Kairnz game board"
   >
     <!-- Checkered grid cells -->
     {#each squares as i}

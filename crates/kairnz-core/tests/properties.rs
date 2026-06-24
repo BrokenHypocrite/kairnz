@@ -1,8 +1,8 @@
-use cairn_core::actions::legal_actions;
-use cairn_core::config::RuleConfig;
-use cairn_core::game::Game;
-use cairn_core::piece::{PieceKind, Player};
-use cairn_core::square::NUM_SQUARES;
+use kairnz_core::actions::legal_actions;
+use kairnz_core::config::RuleConfig;
+use kairnz_core::game::Game;
+use kairnz_core::piece::{PieceKind, Player};
+use kairnz_core::square::NUM_SQUARES;
 use proptest::prelude::*;
 
 /// Maximum steps to play before stopping the random playout.

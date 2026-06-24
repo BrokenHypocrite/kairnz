@@ -6,7 +6,7 @@ pub mod random;
 
 #[cfg(test)]
 mod tests {
-    use cairn_core::{actions::legal_actions, config::RuleConfig, game::Game};
+    use kairnz_core::{actions::legal_actions, config::RuleConfig, game::Game};
 
     use crate::policy::Policy;
     use crate::random::RandomPolicy;

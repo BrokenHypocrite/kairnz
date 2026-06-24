@@ -1,8 +1,8 @@
-use cairn_core::apply::CapturedInfo;
-use cairn_core::game::Game;
-use cairn_core::outcome::GameResult;
-use cairn_core::piece::{PieceKind, Player};
-use cairn_core::square::Sq;
+use kairnz_core::apply::CapturedInfo;
+use kairnz_core::game::Game;
+use kairnz_core::outcome::GameResult;
+use kairnz_core::piece::{PieceKind, Player};
+use kairnz_core::square::Sq;
 use serde::Serialize;
 
 /// A piece as seen by the UI.
@@ -70,6 +70,6 @@ pub fn view_of(game: &Game) -> GameView {
         to_move: pos.to_move,
         ap_remaining: pos.turn.ap_remaining,
         result: game.terminal_result(),
-        checked_keystones: cairn_core::check::checked_keystone_squares(&game.pos),
+        checked_keystones: kairnz_core::check::checked_keystone_squares(&game.pos),
     }
 }

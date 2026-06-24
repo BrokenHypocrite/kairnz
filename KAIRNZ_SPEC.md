@@ -1,10 +1,10 @@
-# Cairn: Game and Engine Specification (v0.1)
+# Kairnz: Game and Engine Specification (v0.1)
 
 ## 1. Project overview and goals
 
-Build a configurable, rules-accurate implementation of **Cairn**, an original two-player abstract strategy game, together with a visual board for self-play, a self-play AI for analysis and practice, and a benchmarking harness for tuning the rules toward competitive balance.
+Build a configurable, rules-accurate implementation of **Kairnz**, an original two-player abstract strategy game, together with a visual board for self-play, a self-play AI for analysis and practice, and a benchmarking harness for tuning the rules toward competitive balance.
 
-Cairn is a game design still in progress. The aim is a rule set that is deep, effectively drawless, and clean enough to support an Elo rating. Several rules are still being tuned, so the engine must treat key rules as configurable switches, and we will use self-play to measure how each switch affects balance and game character.
+Kairnz is a game design still in progress. The aim is a rule set that is deep, effectively drawless, and clean enough to support an Elo rating. Several rules are still being tuned, so the engine must treat key rules as configurable switches, and we will use self-play to measure how each switch affects balance and game character.
 
 High-level deliverables:
 
@@ -66,7 +66,7 @@ The first player's first turn uses a configurable AP amount (section 7). Every o
 - There is no forced check resolution. Any otherwise-legal action is legal even if it leaves your own Keystone in check. Losing a Keystone is the player's own risk.
 - Win condition: capture both of the opponent's Keystones.
 - A player who has no legal action on their turn loses.
-- Cairn is designed to be effectively drawless. Implement a safeguard against unending games, for example a configurable maximum ply count and/or a position-repetition rule. True draws should be rare edge cases and should be reported when they happen.
+- Kairnz is designed to be effectively drawless. Implement a safeguard against unending games, for example a configurable maximum ply count and/or a position-repetition rule. True draws should be rare edge cases and should be reported when they happen.
 
 ## 7. Configurable rules
 
@@ -101,11 +101,11 @@ Design and implement a self-play reinforcement learning system in the spirit of 
 1. **Rule analysis**: train or search under different rule configurations and compare the resulting play, so we can see how changes (Dragon vs Queen, first-turn AP, the optional Keystone rule) affect balance and game character. Where feasible, compare configurations at equal compute, following the approach used to assess game balance with AlphaZero in published chess research.
 2. **A playable opponent**: export a checkpoint that the Human vs AI and AI vs AI modes can load, giving a competent opponent for end-to-end testing.
 
-Properties of Cairn relevant to your design: perfect information, no chance, effectively drawless, two players, a 9 by 9 board, and an action space spanning Move (from-square to to-square), Place (to-square), and Stack (target square), with turns composed of up to 2 AP and a turn that can end early on check. Training must be feasible on a single RTX 4080 Super.
+Properties of Kairnz relevant to your design: perfect information, no chance, effectively drawless, two players, a 9 by 9 board, and an action space spanning Move (from-square to to-square), Place (to-square), and Stack (target square), with turns composed of up to 2 AP and a turn that can end early on check. Training must be feasible on a single RTX 4080 Super.
 
 ## 10. Naming (proposed, treat as renameable constants)
 
-- Game: **Cairn**.
+- Game: **Kairnz**.
 - **Stone**: the base height-1 piece.
 - **Pillar**: a height-2 stack.
 - **Spire**: a height-3 stack (its movement is the Dragon or Queen toggle).

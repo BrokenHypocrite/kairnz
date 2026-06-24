@@ -1,5 +1,5 @@
-use cairn_core::config::RuleConfig;
-use cairn_policy::{greedy::GreedyPolicy, mcts::MctsPolicy, policy::Policy, random::RandomPolicy};
+use kairnz_core::config::RuleConfig;
+use kairnz_policy::{greedy::GreedyPolicy, mcts::MctsPolicy, policy::Policy, random::RandomPolicy};
 use serde::Deserialize;
 
 /// Default rollout cap for MCTS in benchmark mode (modest for speed).
@@ -65,7 +65,7 @@ pub fn load_run_spec(path: &str) -> Result<RunSpec, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cairn_core::config::SpireMode;
+    use kairnz_core::config::SpireMode;
 
     #[test]
     fn runspec_parses_from_yaml() {

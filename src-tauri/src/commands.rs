@@ -1,6 +1,6 @@
-use cairn_core::actions::Action;
-use cairn_core::config::RuleConfig;
-use cairn_core::square::Sq;
+use kairnz_core::actions::Action;
+use kairnz_core::config::RuleConfig;
+use kairnz_core::square::Sq;
 use tauri::State;
 
 use crate::state::{GameId, GameStore};

@@ -1,6 +1,6 @@
-use cairn_core::{actions::Action, game::Game};
+use kairnz_core::{actions::Action, game::Game};
 
-/// The shared interface for all Cairn agents.
+/// The shared interface for all Kairnz agents.
 ///
 /// An implementor receives a `Game` reference and returns the action it
 /// wishes to play, or `None` when no legal action exists.

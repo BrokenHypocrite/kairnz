@@ -1,16 +1,16 @@
-# Cairn Phase 1 Implementation Plan
+# Kairnz Phase 1 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver a rule-correct Cairn rules engine in Rust, a Human-vs-Human Tauri desktop app with an SVG board, and a headless benchmarking harness driving random/greedy/UCT policies — Phase 1 of `CAIRN_SPEC.md`.
+**Goal:** Deliver a rule-correct Kairnz rules engine in Rust, a Human-vs-Human Tauri desktop app with an SVG board, and a headless benchmarking harness driving random/greedy/UCT policies — Phase 1 of `KAIRNZ_SPEC.md`.
 
-**Architecture:** A pure `cairn-core` crate is an action-level state machine: the atomic unit is one Action Point's worth of action (Move/Place/Stack), and an in-turn `TurnState` makes the AP budget, the turn-ending check rule, and the four §7 toggles local, testable transitions. `cairn-policy` (random/greedy/UCT) and `cairn-bench` (headless CLI) consume core. `src-tauri` wraps core in thin commands; a Svelte 5 + Vite SPA renders the board in SVG with Shogi-style directional pieces.
+**Architecture:** A pure `kairnz-core` crate is an action-level state machine: the atomic unit is one Action Point's worth of action (Move/Place/Stack), and an in-turn `TurnState` makes the AP budget, the turn-ending check rule, and the four §7 toggles local, testable transitions. `kairnz-policy` (random/greedy/UCT) and `kairnz-bench` (headless CLI) consume core. `src-tauri` wraps core in thin commands; a Svelte 5 + Vite SPA renders the board in SVG with Shogi-style directional pieces.
 
 **Tech Stack:** Rust (workspace, edition 2021), Tauri 2, Svelte 5 + Vite + TypeScript, `serde`/`serde_yaml`/`serde_json`, `rand` (`StdRng`), `proptest`, `clap`. Build orchestration via `Taskfile.yml`; frontend deps via `pnpm`.
 
 ## Global Constraints
 
-- Board fixed at 9×9 (81 squares). Each player: 18 Stones + 2 Keystones. (`CAIRN_SPEC.md` §2)
+- Board fixed at 9×9 (81 squares). Each player: 18 Stones + 2 Keystones. (`KAIRNZ_SPEC.md` §2)
 - Normal turn = 2 AP. Move=1 AP, Place=1 AP, Stack=2 AP (whole turn). (§5)
 - Keystone never stacks, never promotes, never placed from Reserve. (§3)
 - Capturing a Stone/stack banks every token to the capturer's Reserve (Spire = 3 tokens). Capturing a Keystone removes it permanently (not banked) and counts toward the win. Anti-runaway rule is core, never a toggle. (§4)
@@ -23,14 +23,14 @@
 ## File Structure
 
 ```
-cairn/
+kairnz/
   Cargo.toml                       # workspace manifest
   Taskfile.yml                     # build/test/run orchestration
   config/
     names.yaml                     # display names (§10)
     presets.yaml                   # default RuleConfig presets
   crates/
-    cairn-core/
+    kairnz-core/
       src/
         lib.rs                     # re-exports
         square.rs                  # Sq, File/Rank, BitBoard81
@@ -43,7 +43,7 @@ cairn/
         apply.rs                   # apply_action, capture, check rule, turn advance
         check.rs                   # in-check detection
         outcome.rs                 # GameResult, terminal detection
-    cairn-policy/
+    kairnz-policy/
       src/
         lib.rs
         policy.rs                  # Policy trait
@@ -51,7 +51,7 @@ cairn/
         eval.rs                    # heuristic evaluation
         greedy.rs                  # GreedyPolicy
         mcts.rs                    # plain UCT MCTS
-    cairn-bench/
+    kairnz-bench/
       src/
         main.rs                    # clap CLI
         runner.rs                  # play one game, record GameRecord
@@ -90,7 +90,7 @@ cairn/
 ### Task 1: Cargo workspace + crate skeletons
 
 **Files:**
-- Create: `Cargo.toml`, `crates/cairn-core/Cargo.toml`, `crates/cairn-core/src/lib.rs`, `crates/cairn-policy/Cargo.toml`, `crates/cairn-policy/src/lib.rs`, `crates/cairn-bench/Cargo.toml`, `crates/cairn-bench/src/main.rs`, `Taskfile.yml`, `.gitignore`
+- Create: `Cargo.toml`, `crates/kairnz-core/Cargo.toml`, `crates/kairnz-core/src/lib.rs`, `crates/kairnz-policy/Cargo.toml`, `crates/kairnz-policy/src/lib.rs`, `crates/kairnz-bench/Cargo.toml`, `crates/kairnz-bench/src/main.rs`, `Taskfile.yml`, `.gitignore`
 
 **Interfaces:**
 - Produces: a buildable workspace with three crates.
@@ -101,7 +101,7 @@ cairn/
 # Cargo.toml
 [workspace]
 resolver = "2"
-members = ["crates/cairn-core", "crates/cairn-policy", "crates/cairn-bench", "src-tauri"]
+members = ["crates/kairnz-core", "crates/kairnz-policy", "crates/kairnz-bench", "src-tauri"]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -114,9 +114,9 @@ rand_pcg = "0.3"
 - [ ] **Step 2: Write crate manifests and stub lib/main**
 
 ```toml
-# crates/cairn-core/Cargo.toml
+# crates/kairnz-core/Cargo.toml
 [package]
-name = "cairn-core"
+name = "kairnz-core"
 version = "0.1.0"
 edition = "2021"
 [dependencies]
@@ -126,7 +126,7 @@ proptest = "1"
 ```
 
 ```rust
-// crates/cairn-core/src/lib.rs
+// crates/kairnz-core/src/lib.rs
 #[cfg(test)]
 mod smoke {
     #[test]
@@ -136,7 +136,7 @@ mod smoke {
 }
 ```
 
-Repeat analogous `Cargo.toml`/stub for `cairn-policy` (deps: `cairn-core`, `rand`, `rand_pcg`) and `cairn-bench` (deps: `cairn-core`, `cairn-policy`, `serde`, `serde_yaml`, `serde_json`, `clap = { version = "4", features = ["derive"] }`). `cairn-bench/src/main.rs`: `fn main() {}`.
+Repeat analogous `Cargo.toml`/stub for `kairnz-policy` (deps: `kairnz-core`, `rand`, `rand_pcg`) and `kairnz-bench` (deps: `kairnz-core`, `kairnz-policy`, `serde`, `serde_yaml`, `serde_json`, `clap = { version = "4", features = ["derive"] }`). `kairnz-bench/src/main.rs`: `fn main() {}`.
 
 - [ ] **Step 3: Write Taskfile and .gitignore**
 
@@ -146,7 +146,7 @@ version: '3'
 tasks:
   build: { cmds: ["cargo build --workspace"] }
   test: { cmds: ["cargo test --workspace"] }
-  bench: { cmds: ["cargo run -p cairn-bench --"] }
+  bench: { cmds: ["cargo run -p kairnz-bench --"] }
   ui: { dir: ui, cmds: ["pnpm install", "pnpm tauri dev"] }
 ```
 
@@ -160,7 +160,7 @@ Expected: PASS (`workspace_builds` green), zero warnings.
 - [ ] **Step 5: Commit**
 
 ```bash
-git init && git add -A && git commit -m "chore: scaffold cairn cargo workspace"
+git init && git add -A && git commit -m "chore: scaffold kairnz cargo workspace"
 ```
 
 ---
@@ -170,8 +170,8 @@ git init && git add -A && git commit -m "chore: scaffold cairn cargo workspace"
 ### Task 2: Square, bitboard, player, piece primitives
 
 **Files:**
-- Create: `crates/cairn-core/src/square.rs`, `crates/cairn-core/src/piece.rs`
-- Modify: `crates/cairn-core/src/lib.rs` (add `pub mod square; pub mod piece;`)
+- Create: `crates/kairnz-core/src/square.rs`, `crates/kairnz-core/src/piece.rs`
+- Modify: `crates/kairnz-core/src/lib.rs` (add `pub mod square; pub mod piece;`)
 
 **Interfaces:**
 - Produces:
@@ -207,18 +207,18 @@ fn player_opponent_is_involutive() {
 }
 ```
 
-- [ ] **Step 2: Run, verify failure** — Run: `cargo test -p cairn-core square::` Expected: FAIL (unresolved names).
+- [ ] **Step 2: Run, verify failure** — Run: `cargo test -p kairnz-core square::` Expected: FAIL (unresolved names).
 
 - [ ] **Step 3: Implement** `Sq`, `BitBoard81` (back with `u128`, mask low 81 bits), `Player`, `PieceKind`, `Piece`. All constructors validate ranges and return `Option`/`Result`; no `unwrap` in non-test code.
 
-- [ ] **Step 4: Run, verify pass** — Run: `cargo test -p cairn-core` Expected: PASS.
+- [ ] **Step 4: Run, verify pass** — Run: `cargo test -p kairnz-core` Expected: PASS.
 
 - [ ] **Step 5: Commit** — `git commit -am "feat(core): square, bitboard, player, piece primitives"`
 
 ### Task 3: RuleConfig
 
 **Files:**
-- Create: `crates/cairn-core/src/config.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-core/src/config.rs`; Modify `lib.rs`.
 
 **Interfaces:**
 - Produces:
@@ -246,7 +246,7 @@ fn config_roundtrips_yaml() {
 ```
 (Add `serde_yaml` to core dev-dependencies.)
 
-- [ ] **Step 2: Run, verify fail.** Run: `cargo test -p cairn-core config::`
+- [ ] **Step 2: Run, verify fail.** Run: `cargo test -p kairnz-core config::`
 - [ ] **Step 3: Implement `config.rs`.**
 - [ ] **Step 4: Run, verify pass.**
 - [ ] **Step 5: Commit** — `git commit -am "feat(core): RuleConfig with spec defaults"`
@@ -254,7 +254,7 @@ fn config_roundtrips_yaml() {
 ### Task 4: Position type + standard setup
 
 **Files:**
-- Create: `crates/cairn-core/src/position.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-core/src/position.rs`; Modify `lib.rs`.
 
 **Interfaces:**
 - Consumes: `Sq`, `Piece`, `Player`, `RuleConfig`.
@@ -306,7 +306,7 @@ fn reserves_start_empty() {
 ### Task 5: Zobrist hashing
 
 **Files:**
-- Create: `crates/cairn-core/src/zobrist.rs`; Modify `position.rs` (compute hash in setup; expose `fn recompute_zobrist`), `lib.rs`.
+- Create: `crates/kairnz-core/src/zobrist.rs`; Modify `position.rs` (compute hash in setup; expose `fn recompute_zobrist`), `lib.rs`.
 
 **Interfaces:**
 - Produces: `fn zobrist_full(pos: &Position) -> u64` keyed by (square, owner, kind, height), side-to-move, and per-player reserve counts. Deterministic fixed key table (seeded const generation, not RNG-at-runtime).
@@ -341,7 +341,7 @@ fn changing_side_to_move_changes_hash() {
 ### Task 6: Movement geometry
 
 **Files:**
-- Create: `crates/cairn-core/src/movement.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-core/src/movement.rs`; Modify `lib.rs`.
 
 **Interfaces:**
 - Consumes: `Position`, `Sq`, `Piece`, `SpireMode`.
@@ -375,13 +375,13 @@ fn never_moves_onto_friendly() {}
 
 - [ ] **Step 2: Run, verify fail.**
 - [ ] **Step 3: Implement** direction tables (`ORTHO`, `DIAG`, `ALL8`), a `step` helper and a `slide` helper, and dispatch by `(kind, height, spire)`.
-- [ ] **Step 4: Run, verify pass** — Run: `cargo test -p cairn-core movement::`
+- [ ] **Step 4: Run, verify pass** — Run: `cargo test -p kairnz-core movement::`
 - [ ] **Step 5: Commit** — `git commit -am "feat(core): piece movement geometry incl Dragon/Queen"`
 
 ### Task 7: Action types + legal action generation
 
 **Files:**
-- Create: `crates/cairn-core/src/actions.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-core/src/actions.rs`; Modify `lib.rs`.
 
 **Interfaces:**
 - Consumes: `move_targets`, `Position`, `TurnState`.
@@ -426,7 +426,7 @@ fn moved_keystone_cannot_move_again_when_toggle_on() {}
 ### Task 8: In-check detection
 
 **Files:**
-- Create: `crates/cairn-core/src/check.rs`, `crates/cairn-core/src/outcome.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-core/src/check.rs`, `crates/kairnz-core/src/outcome.rs`; Modify `lib.rs`.
 
 **Interfaces:**
 - Produces: `fn is_in_check(pos: &Position, keystone_sq: Sq, by: Player) -> bool` — true if any piece owned by `by` has `keystone_sq` in its `move_targets`. `fn checked_enemy_keystone_squares(pos: &Position, attacker: Player) -> BitBoard81` returning the set of squares holding `attacker.opponent()`'s Keystones that are currently in check by `attacker`. (Square-anchored, not a positional `[bool; 2]` slot array: within a mover's turn the defender's Keystone squares are fixed, so anchoring "checked at start" by square is stable under capture, whereas slot indices shift when a Keystone is removed and would mis-fire the turn-ending rule.) `TurnState.enemy_checked_at_start` is therefore a `BitBoard81`, not `[bool; 2]`.
@@ -449,7 +449,7 @@ fn dragon_slides_to_threaten_keystone_across_empty_rank() {}
 ### Task 9: apply_action — Move, capture, Reserve banking, Keystone removal
 
 **Files:**
-- Create: `crates/cairn-core/src/apply.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-core/src/apply.rs`; Modify `lib.rs`.
 
 **Interfaces:**
 - Consumes: `legal_actions`, `is_in_check`, `checked_enemy_keystone_squares`, `zobrist_full`.
@@ -486,7 +486,7 @@ fn token_conservation_holds_after_capture() {
 ### Task 10: apply_action — Place and Stack
 
 **Files:**
-- Modify: `crates/cairn-core/src/apply.rs`
+- Modify: `crates/kairnz-core/src/apply.rs`
 
 **Interfaces:**
 - Produces: Place/Stack arms of `apply_action`. Place: reserve -= 1, new P1/P2 Stone height 1 at `to`, AP -= 1. Stack: reserve -= 1, target height += 1, AP -= 2 (turn ends), never onto Keystone.
@@ -512,7 +512,7 @@ fn stack_onto_keystone_is_illegal() {
 ### Task 11: Turn-ending check rule + turn advance (correctness-critical)
 
 **Files:**
-- Modify: `crates/cairn-core/src/apply.rs`; Create `crates/cairn-core/src/turn.rs` (advance/reset helpers); Modify `lib.rs`.
+- Modify: `crates/kairnz-core/src/apply.rs`; Create `crates/kairnz-core/src/turn.rs` (advance/reset helpers); Modify `lib.rs`.
 
 **Interfaces:**
 - Produces:
@@ -554,13 +554,13 @@ fn turn_ends_when_ap_reaches_zero_without_check() {
 
 - [ ] **Step 2: Run, verify fail.**
 - [ ] **Step 3: Implement** the post-action recheck and `advance_turn`; ensure `enemy_checked_at_start` is recomputed for the new mover on every advance and in `new_standard`.
-- [ ] **Step 4: Run, verify pass** — Run: `cargo test -p cairn-core` (whole crate).
+- [ ] **Step 4: Run, verify pass** — Run: `cargo test -p kairnz-core` (whole crate).
 - [ ] **Step 5: Commit** — `git commit -am "feat(core): turn-ending check rule and turn advance"`
 
 ### Task 12: Toggle integration tests (capture-lock, keystone single-move, first-turn AP, Spire)
 
 **Files:**
-- Modify: `crates/cairn-core/src/apply.rs` (set `capture_locked` on capture; set `keystone_moved` on keystone move). Tests across `actions.rs`/`apply.rs`.
+- Modify: `crates/kairnz-core/src/apply.rs` (set `capture_locked` on capture; set `keystone_moved` on keystone move). Tests across `actions.rs`/`apply.rs`.
 
 **Interfaces:**
 - Produces: capture sets `capture_locked` at the destination square; a Keystone Move sets `keystone_moved` at the destination square. (Generation already filters in Task 7.)
@@ -594,7 +594,7 @@ fn spire_queen_toggle_changes_legal_targets() {}
 ### Task 13: Terminal detection — win, loss, draw
 
 **Files:**
-- Create: `crates/cairn-core/src/outcome.rs`; Modify `apply.rs`/`turn.rs`, `lib.rs`. Add a `position_history: Vec<u64>` to `Position` (or a sibling `Game` wrapper — use a `Game { pos, history: Vec<u64> }` in `position.rs` to keep `Position` lean).
+- Create: `crates/kairnz-core/src/outcome.rs`; Modify `apply.rs`/`turn.rs`, `lib.rs`. Add a `position_history: Vec<u64>` to `Position` (or a sibling `Game` wrapper — use a `Game { pos, history: Vec<u64> }` in `position.rs` to keep `Position` lean).
 
 **Interfaces:**
 - Produces:
@@ -623,7 +623,7 @@ fn threefold_repetition_reports_draw() {}
 ### Task 14: Property tests + perft anchors
 
 **Files:**
-- Create: `crates/cairn-core/tests/properties.rs`, `crates/cairn-core/tests/perft.rs`.
+- Create: `crates/kairnz-core/tests/properties.rs`, `crates/kairnz-core/tests/perft.rs`.
 
 **Interfaces:**
 - Consumes: public core API.
@@ -642,7 +642,7 @@ proptest! {
 // record them as regression anchors (compute once, assert equality thereafter).
 ```
 
-- [ ] **Step 2: Run** — Run: `cargo test -p cairn-core --test properties --test perft` Expected: PASS.
+- [ ] **Step 2: Run** — Run: `cargo test -p kairnz-core --test properties --test perft` Expected: PASS.
 - [ ] **Step 3: Commit** — `git commit -am "test(core): property invariants and perft anchors"`
 
 ---
@@ -652,10 +652,10 @@ proptest! {
 ### Task 15: Policy trait + Random policy
 
 **Files:**
-- Create: `crates/cairn-policy/src/policy.rs`, `crates/cairn-policy/src/random.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-policy/src/policy.rs`, `crates/kairnz-policy/src/random.rs`; Modify `lib.rs`.
 
 **Interfaces:**
-- Consumes: `cairn_core::{Game, Action, legal_actions}`.
+- Consumes: `kairnz_core::{Game, Action, legal_actions}`.
 - Produces:
   - `trait Policy { fn choose(&mut self, game: &Game) -> Option<Action>; fn name(&self) -> &str; }`
   - `struct RandomPolicy { rng: Pcg64 }` with `RandomPolicy::seeded(seed: u64)`.
@@ -680,7 +680,7 @@ fn random_policy_only_returns_legal_actions() {}
 ### Task 16: Heuristic evaluation + Greedy policy
 
 **Files:**
-- Create: `crates/cairn-policy/src/eval.rs`, `crates/cairn-policy/src/greedy.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-policy/src/eval.rs`, `crates/kairnz-policy/src/greedy.rs`; Modify `lib.rs`.
 
 **Interfaces:**
 - Produces:
@@ -704,7 +704,7 @@ fn greedy_is_deterministic_for_a_seed() {}
 ### Task 17: Plain UCT MCTS
 
 **Files:**
-- Create: `crates/cairn-policy/src/mcts.rs`; Modify `lib.rs`.
+- Create: `crates/kairnz-policy/src/mcts.rs`; Modify `lib.rs`.
 
 **Interfaces:**
 - Produces:
@@ -734,7 +734,7 @@ fn mcts_beats_random_over_a_short_match() {
 ### Task 18: Game runner + GameRecord
 
 **Files:**
-- Create: `crates/cairn-bench/src/runner.rs`; Modify `main.rs`.
+- Create: `crates/kairnz-bench/src/runner.rs`; Modify `main.rs`.
 
 **Interfaces:**
 - Produces:
@@ -760,7 +760,7 @@ fn play_game_records_first_capture_side() {}
 ### Task 19: Metrics aggregation (all six §8 metrics)
 
 **Files:**
-- Create: `crates/cairn-bench/src/metrics.rs`.
+- Create: `crates/kairnz-bench/src/metrics.rs`.
 
 **Interfaces:**
 - Produces: `struct Metrics { p1_win_rate, p2_win_rate, draw_rate, ply_median, ply_histogram, snowball_rate, comeback_rate, avg_max_stack }` and `fn aggregate(records: &[GameRecord]) -> Metrics`.
@@ -786,13 +786,13 @@ fn ply_median_handles_even_and_odd_counts() {}
 ### Task 20: CLI + YAML run-spec + report
 
 **Files:**
-- Create: `crates/cairn-bench/src/spec.rs`, `crates/cairn-bench/src/report.rs`; Modify `main.rs`.
+- Create: `crates/kairnz-bench/src/spec.rs`, `crates/kairnz-bench/src/report.rs`; Modify `main.rs`.
 
 **Interfaces:**
 - Produces:
   - `struct RunSpec { configs: Vec<NamedConfig>, games_per_config: u32, seed: u64, p1_policy: PolicySpec, p2_policy: PolicySpec }` parsed from YAML; `enum PolicySpec { Random, Greedy, Mcts { iterations: u32 } }`; `fn build_policy(&PolicySpec, seed) -> Box<dyn Policy>`.
   - `fn render_human(&[(String, Metrics)]) -> String` (side-by-side table) and `fn render_json(...) -> String`.
-  - `main` (clap): `cairn-bench --spec run.yaml [--json out.json]`.
+  - `main` (clap): `kairnz-bench --spec run.yaml [--json out.json]`.
 
 - [ ] **Step 1: Failing tests**
 
@@ -836,7 +836,7 @@ fn apply_illegal_action_returns_err_without_mutating() {}
 fn legal_actions_for_selected_square_filters_to_that_piece() {}
 ```
 
-- [ ] **Step 2–4:** implement and pass (`cargo test -p cairn-tauri` for the pure logic; Tauri runtime not needed for these).
+- [ ] **Step 2–4:** implement and pass (`cargo test -p kairnz-tauri` for the pure logic; Tauri runtime not needed for these).
 - [ ] **Step 5: Commit** — `git commit -am "feat(app): tauri commands and game store"`
 
 ### Task 22: Svelte SPA scaffold + typed API + names loading
@@ -858,7 +858,7 @@ fn legal_actions_for_selected_square_filters_to_that_piece() {}
 
 **Interfaces:**
 - Consumes: `GameView`.
-- Produces: a 9×9 SVG grid; `Piece.svelte` renders an asymmetric upward-tapering cairn/stone wedge glyph rotated 180° for P2 (Shogi-style ownership orientation, not color alone); stack height shown as layered tiers (Stone/Pillar/Spire); Keystone a distinct silhouette sharing the orientation.
+- Produces: a 9×9 SVG grid; `Piece.svelte` renders an asymmetric upward-tapering stone-pile wedge glyph rotated 180° for P2 (Shogi-style ownership orientation, not color alone); stack height shown as layered tiers (Stone/Pillar/Spire); Keystone a distinct silhouette sharing the orientation.
 
 - [ ] **Step 1: Build** `Board.svelte` mapping 81 squares to SVG `<g>` cells, placing `Piece.svelte` from `view.board`. Define the wedge path once; apply `transform="rotate(180 cx cy)"` for P2.
 - [ ] **Step 2: Run** — `pnpm tauri dev`; visually confirm the starting position renders with P1 pieces pointing up, P2 pieces pointing down, keystones distinct.
@@ -882,15 +882,15 @@ fn legal_actions_for_selected_square_filters_to_that_piece() {}
 - Modify: `ui/src/lib/names.ts`, `src-tauri/src/view.rs` (load `config/names.yaml`).
 
 - [ ] **Step 1:** Load `names.yaml` so all piece/term labels come from config (§10), not literals.
-- [ ] **Step 2: Full-suite verification** — Run: `cargo test --workspace` (all green) and `cargo run -p cairn-bench -- --spec config/example-run.yaml` (report renders, deterministic on rerun). Manually play one HvH game per the §8 mode-1 requirements.
+- [ ] **Step 2: Full-suite verification** — Run: `cargo test --workspace` (all green) and `cargo run -p kairnz-bench -- --spec config/example-run.yaml` (report renders, deterministic on rerun). Manually play one HvH game per the §8 mode-1 requirements.
 - [ ] **Step 3: Commit** — `git commit -am "feat: wire display names and finalize Phase 1"`
 
 ---
 
 ## Phases 2 & 3 (planned at high level only — not part of this plan's execution)
 
-- **Phase 2 (AlphaZero self-play, §9):** add a `cairn-az` crate consuming the same `Game`/`Action` types. State/action encoding reuses the per-action Move/Place/Stack space already in `actions.rs`; the MCTS in `mcts.rs` is generalized to accept a policy/value evaluator (swap random rollouts for network priors + value). Training path (Hybrid Rust+PyTorch/ONNX vs all-Rust tch/candle/burn) decided at Phase 2 start. No change to `cairn-core`.
-- **Phase 3 (Human-vs-AI, AI-vs-AI, §8 modes 2–3):** a `NetworkPolicy` implementing the existing `Policy` trait loads a Phase 2 checkpoint; the Tauri layer adds mode selection and an AI-move command. Reuses `cairn-policy` and the existing board UI; no engine change.
+- **Phase 2 (AlphaZero self-play, §9):** add a `kairnz-az` crate consuming the same `Game`/`Action` types. State/action encoding reuses the per-action Move/Place/Stack space already in `actions.rs`; the MCTS in `mcts.rs` is generalized to accept a policy/value evaluator (swap random rollouts for network priors + value). Training path (Hybrid Rust+PyTorch/ONNX vs all-Rust tch/candle/burn) decided at Phase 2 start. No change to `kairnz-core`.
+- **Phase 3 (Human-vs-AI, AI-vs-AI, §8 modes 2–3):** a `NetworkPolicy` implementing the existing `Policy` trait loads a Phase 2 checkpoint; the Tauri layer adds mode selection and an AI-move command. Reuses `kairnz-policy` and the existing board UI; no engine change.
 
 ## Self-Review notes
 

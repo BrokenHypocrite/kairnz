@@ -157,7 +157,7 @@ mod tests {
     use super::*;
     use crate::run::run_config;
     use crate::spec::{NamedConfig, PolicySpec};
-    use cairn_core::config::RuleConfig;
+    use kairnz_core::config::RuleConfig;
 
     fn make_configs() -> Vec<NamedConfig> {
         vec![

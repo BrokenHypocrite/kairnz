@@ -1,7 +1,7 @@
-use cairn_core::actions::legal_actions;
-use cairn_core::config::RuleConfig;
-use cairn_core::game::Game;
-use cairn_core::position::Position;
+use kairnz_core::actions::legal_actions;
+use kairnz_core::config::RuleConfig;
+use kairnz_core::game::Game;
+use kairnz_core::position::Position;
 
 /// Returns the number of legal actions from the standard opening with the given first_turn_ap.
 fn opening_count(first_turn_ap: u8) -> usize {

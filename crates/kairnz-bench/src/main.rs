@@ -8,9 +8,9 @@ use clap::Parser;
 use run::run_config;
 use spec::load_run_spec;
 
-/// Command-line arguments for the Cairn benchmark harness.
+/// Command-line arguments for the Kairnz benchmark harness.
 #[derive(Parser)]
-#[command(name = "cairn-bench", about = "Run headless Cairn game benchmarks")]
+#[command(name = "kairnz-bench", about = "Run headless Kairnz game benchmarks")]
 struct Cli {
     /// Path to the YAML run-spec file.
     #[arg(long)]

@@ -1,8 +1,8 @@
 {
-  "name": "cairn",
+  "name": "kairnz",
   "version": "0.1.0",
   "private": true,
-  "description": "Cairn desktop app launcher. Run tauri commands from this project root.",
+  "description": "Kairnz desktop app launcher. Run tauri commands from this project root.",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",

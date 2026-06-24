@@ -1,5 +1,5 @@
 /**
- * Move-notation helpers for Cairn.
+ * Move-notation helpers for Kairnz.
  */
 import type { Action, PieceView } from './types.js';
 

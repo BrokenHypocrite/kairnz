@@ -1,5 +1,5 @@
 /**
- * TypeScript mirrors of the Rust serde JSON shapes exposed by cairn-tauri.
+ * TypeScript mirrors of the Rust serde JSON shapes exposed by kairnz-tauri.
  * All types must match the serialized forms exactly; mismatches break runtime.
  */
 
