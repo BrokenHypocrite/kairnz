@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 use crate::actions::{action_cost, Action, IllegalAction};
+use crate::check::checked_enemy_keystone_squares;
 use crate::movement::move_targets;
 use crate::outcome::GameResult;
 use crate::piece::{PieceKind, Player};
 use crate::position::Position;
 use crate::square::Sq;
+use crate::turn::advance_turn;
 use crate::zobrist::zobrist_full;
 
 /// Information about a piece captured during an action.
@@ -26,9 +28,10 @@ pub struct CapturedInfo {
 pub struct ActionOutcome {
     /// Information about any piece captured by this action.
     pub captured: Option<CapturedInfo>,
-    /// Whether this action exhausted the turn's AP, ending the turn.
+    /// Whether this action ended the turn (via AP exhaustion or the check rule).
     pub turn_ended: bool,
-    /// Whether the turn ended due to a check rule (always false until Task 11).
+    /// Whether the turn ended because this action newly placed an enemy Keystone
+    /// in check that was not already in check at the start of the turn.
     pub ended_on_check: bool,
     /// The game result if this action ended the game.
     pub result: Option<GameResult>,
@@ -128,13 +131,8 @@ fn apply_move(pos: &mut Position, from: Sq, to: Sq) -> Result<ActionOutcome, Ill
     pos.zobrist = zobrist_full(pos);
     pos.ply += 1;
 
-    // --- Outcome ---
-
-    // Turn ends when AP reaches zero (check rule added in Task 11).
-    let turn_ended = pos.turn.ap_remaining == 0;
-
     // Win condition: opponent has no Keystones remaining on the board.
-    let result = if captured.map_or(false, |c| c.kind == PieceKind::Keystone) {
+    let result = if captured.is_some_and(|c| c.kind == PieceKind::Keystone) {
         let opponent_keystones = pos.keystones_of(mover.opponent()).count();
         if opponent_keystones == 0 {
             Some(GameResult::Win(mover))
@@ -145,12 +143,47 @@ fn apply_move(pos: &mut Position, from: Sq, to: Sq) -> Result<ActionOutcome, Ill
         None
     };
 
-    Ok(ActionOutcome {
+    Ok(finalize(pos, mover, captured, result))
+}
+
+/// Shared post-mutation step for every action arm.
+///
+/// `mover` is the player who just acted; it MUST be captured before any turn
+/// advance flips `to_move`. Determines whether the action newly placed an enemy
+/// Keystone in check (the turn-ending check rule), whether the turn ended (check
+/// or AP exhaustion), advances the turn when appropriate, and assembles the
+/// `ActionOutcome`.
+///
+/// The check rule is square-anchored: `enemy_checked_at_start` records the enemy
+/// Keystone squares already in check at the start of the turn. Because the
+/// defender cannot move during the mover's turn, those squares are fixed, and the
+/// only way one leaves the live set is via capture. Capturing an already-checked
+/// Keystone therefore does NOT register as a new check (its square drops out of
+/// `now`), while newly threatening any other enemy Keystone does.
+fn finalize(
+    pos: &mut Position,
+    mover: Player,
+    captured: Option<CapturedInfo>,
+    result: Option<GameResult>,
+) -> ActionOutcome {
+    let now = checked_enemy_keystone_squares(pos, mover);
+    let newly_checked = now.difference(pos.turn.enemy_checked_at_start);
+    let ended_on_check = !newly_checked.is_empty();
+    let mut turn_ended = ended_on_check || pos.turn.ap_remaining == 0;
+
+    if result.is_some() {
+        // The action won the game: it is over. Force turn_ended and do not advance.
+        turn_ended = true;
+    } else if turn_ended {
+        advance_turn(pos);
+    }
+
+    ActionOutcome {
         captured,
         turn_ended,
-        ended_on_check: false,
+        ended_on_check,
         result,
-    })
+    }
 }
 
 /// Maximum height a Stone must be at or below to accept a stack token.
@@ -192,12 +225,7 @@ fn apply_place(pos: &mut Position, to: Sq) -> Result<ActionOutcome, IllegalActio
     pos.zobrist = zobrist_full(pos);
     pos.ply += 1;
 
-    Ok(ActionOutcome {
-        captured: None,
-        turn_ended: pos.turn.ap_remaining == 0,
-        ended_on_check: false,
-        result: None,
-    })
+    Ok(finalize(pos, mover, None, None))
 }
 
 /// Executes a Stack action: validates AP (needs 2), reserve, and that the target
@@ -245,12 +273,7 @@ fn apply_stack(pos: &mut Position, target: Sq) -> Result<ActionOutcome, IllegalA
     pos.zobrist = zobrist_full(pos);
     pos.ply += 1;
 
-    Ok(ActionOutcome {
-        captured: None,
-        turn_ended: true,
-        ended_on_check: false,
-        result: None,
-    })
+    Ok(finalize(pos, mover, None, None))
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +283,8 @@ fn apply_stack(pos: &mut Position, target: Sq) -> Result<ActionOutcome, IllegalA
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::RuleConfig;
+    use crate::check::checked_enemy_keystone_squares;
+    use crate::config::{RuleConfig, DEFAULT_AP};
     use crate::piece::{Piece, PieceKind, Player};
     use crate::position::{Position, TurnState};
     use crate::square::{BitBoard81, NUM_SQUARES};
@@ -664,8 +688,12 @@ mod tests {
         let outcome = apply_action(&mut pos, Action::Place { to: sq(4, 4) })
             .expect("place must be legal");
 
+        // Spending the last AP ends the turn, which advances: side flips and the
+        // new turn resets AP to DEFAULT_AP.
         assert!(outcome.turn_ended);
-        assert_eq!(pos.turn.ap_remaining, 0);
+        assert!(!outcome.ended_on_check, "a quiet place threatens nothing");
+        assert_eq!(pos.to_move, Player::P2, "turn must advance to P2");
+        assert_eq!(pos.turn.ap_remaining, DEFAULT_AP, "new turn resets AP");
     }
 
     // ---------------------------------------------------------------------------
@@ -687,10 +715,12 @@ mod tests {
         assert_eq!(piece.height, 2);
         // Reserve decremented by 1.
         assert_eq!(pos.reserves[Player::P1.index()], 1);
-        // AP is 0 (costs 2).
-        assert_eq!(pos.turn.ap_remaining, 0);
-        // Turn ended.
+        // Stack costs the full 2-AP budget, so the turn ends and advances:
+        // side flips and the new turn's AP resets to DEFAULT_AP.
         assert!(outcome.turn_ended);
+        assert!(!outcome.ended_on_check, "this stack threatens nothing");
+        assert_eq!(pos.to_move, Player::P2, "turn must advance to P2");
+        assert_eq!(pos.turn.ap_remaining, DEFAULT_AP, "new turn resets AP");
         // No capture.
         assert!(outcome.captured.is_none());
     }
@@ -786,5 +816,176 @@ mod tests {
 
         assert_eq!(pos.ply, ply_before + 1);
         assert_ne!(pos.zobrist, hash_before);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Turn-ending check rule
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn newly_threatening_a_keystone_by_move_ends_turn_immediately() {
+        let mut pos = empty_pos_with_ap(2);
+        // P2 Keystone at (4, 4), not yet attacked.
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Keystone, 1));
+        // P1 Pillar (h2) at (4, 2): one orthogonal step to (4, 3) brings it
+        // adjacent to the Keystone, newly threatening it.
+        place(&mut pos, 4, 2, Piece::new(Player::P1, PieceKind::Stone, 2));
+
+        let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 2), to: sq(4, 3) })
+            .expect("move must be legal");
+
+        assert!(outcome.ended_on_check, "newly threatening a Keystone ends on check");
+        assert!(outcome.turn_ended, "an ended-on-check action ends the turn");
+        // The second AP is forfeit: the turn advanced to P2 with a fresh budget.
+        assert_eq!(pos.to_move, Player::P2, "turn advanced after the check");
+        assert_eq!(pos.turn.ap_remaining, DEFAULT_AP, "remaining AP forfeit; new turn budget");
+    }
+
+    #[test]
+    fn newly_threatening_by_place_ends_turn() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        // P2 Keystone at (4, 4).
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Keystone, 1));
+
+        // Place a height-1 Stone at (4, 3): a h1 Stone steps orthogonally, so it
+        // newly threatens the Keystone one square north.
+        let outcome = apply_action(&mut pos, Action::Place { to: sq(4, 3) })
+            .expect("place must be legal");
+
+        assert!(outcome.ended_on_check, "placing an attacker newly checks the Keystone");
+        assert!(outcome.turn_ended);
+        assert_eq!(pos.to_move, Player::P2);
+        assert_eq!(pos.turn.ap_remaining, DEFAULT_AP);
+    }
+
+    #[test]
+    fn newly_threatening_by_stack_ends_turn() {
+        let mut pos = empty_pos_with_ap(2);
+        pos.reserves[Player::P1.index()] = 1;
+        // P2 Keystone at (5, 5), diagonally adjacent to (4, 4).
+        place(&mut pos, 5, 5, Piece::new(Player::P2, PieceKind::Keystone, 1));
+        // P1 height-1 Stone at (4, 4): a h1 Stone moves only orthogonally, so it
+        // does NOT yet threaten the diagonal Keystone.
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 1));
+        assert!(
+            checked_enemy_keystone_squares(&pos, Player::P1).is_empty(),
+            "precondition: h1 Stone does not threaten the diagonal Keystone"
+        );
+
+        // Stack to height 2: a Pillar steps in all 8 directions and now threatens
+        // the diagonal Keystone. Stack also costs 2 AP, but the end must be
+        // reflected via ended_on_check.
+        let outcome = apply_action(&mut pos, Action::Stack { target: sq(4, 4) })
+            .expect("stack must be legal");
+
+        assert!(outcome.ended_on_check, "the upgraded movement newly threatens the Keystone");
+        assert!(outcome.turn_ended);
+        assert_eq!(pos.to_move, Player::P2);
+        assert_eq!(pos.turn.ap_remaining, DEFAULT_AP);
+    }
+
+    #[test]
+    fn capturing_already_checked_keystone_does_not_end_on_check_and_may_continue() {
+        let mut pos = empty_pos_with_ap(2);
+        // P2 Keystone A at (4, 4), already in check at the start of the turn.
+        let keystone_a = sq(4, 4);
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Keystone, 1));
+        // A SECOND P2 Keystone elsewhere and safe, so capturing A is not a win.
+        place(&mut pos, 0, 8, Piece::new(Player::P2, PieceKind::Keystone, 1));
+        // P1 Pillar (h2) adjacent at (4, 3).
+        place(&mut pos, 4, 3, Piece::new(Player::P1, PieceKind::Stone, 2));
+        // Model "already in check at start": A is in the set.
+        pos.turn.enemy_checked_at_start = checked_enemy_keystone_squares(&pos, Player::P1);
+        assert!(pos.turn.enemy_checked_at_start.contains(keystone_a), "precondition: A in check at start");
+
+        // Capture A with the first AP.
+        let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 3), to: keystone_a })
+            .expect("capturing move must be legal");
+
+        let cap = outcome.captured.expect("a Keystone was captured");
+        assert_eq!(cap.kind, PieceKind::Keystone);
+        assert!(!outcome.ended_on_check, "capturing an already-checked Keystone is not a new check");
+        assert!(!outcome.turn_ended, "AP remains, so the turn continues");
+        assert_eq!(pos.to_move, Player::P1, "turn did NOT advance");
+        assert_eq!(pos.turn.ap_remaining, 1, "one AP spent of two");
+    }
+
+    #[test]
+    fn threatening_the_second_keystone_ends_turn_even_if_first_already_checked() {
+        let mut pos = empty_pos_with_ap(2);
+        // Keystone A at (0, 0), already in check at start (modeled below).
+        let keystone_a = sq(0, 0);
+        place(&mut pos, 0, 0, Piece::new(Player::P2, PieceKind::Keystone, 1));
+        // The piece that checks A: a P1 Pillar adjacent at (1, 0).
+        place(&mut pos, 1, 0, Piece::new(Player::P1, PieceKind::Stone, 2));
+        // Keystone B at (4, 4), NOT yet in check.
+        place(&mut pos, 4, 4, Piece::new(Player::P2, PieceKind::Keystone, 1));
+        // A separate P1 Pillar at (4, 2) that will newly threaten B by stepping to (4, 3).
+        place(&mut pos, 4, 2, Piece::new(Player::P1, PieceKind::Stone, 2));
+
+        pos.turn.enemy_checked_at_start = checked_enemy_keystone_squares(&pos, Player::P1);
+        assert!(pos.turn.enemy_checked_at_start.contains(keystone_a), "precondition: A already checked");
+        assert!(!pos.turn.enemy_checked_at_start.contains(sq(4, 4)), "precondition: B not yet checked");
+
+        // Newly threaten B.
+        let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 2), to: sq(4, 3) })
+            .expect("move must be legal");
+
+        assert!(outcome.ended_on_check, "newly threatening B is a new check even with A already checked");
+        assert!(outcome.turn_ended);
+        assert_eq!(pos.to_move, Player::P2);
+    }
+
+    #[test]
+    fn leaving_own_keystone_in_check_is_legal() {
+        let mut pos = empty_pos_with_ap(2);
+        // P1's OWN Keystone at (4, 4).
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Keystone, 1));
+        // A P2 Dragon Spire (h3) at (4, 8): slides orthogonally down file 4, but is
+        // currently blocked by the P1 shield.
+        place(&mut pos, 4, 8, Piece::new(Player::P2, PieceKind::Stone, 3));
+        // P1 Stone shield at (4, 6) on the Spire's ray to the Keystone.
+        place(&mut pos, 4, 6, Piece::new(Player::P1, PieceKind::Stone, 1));
+
+        // Move the shield east off the file: this opens the Spire's ray and leaves
+        // P1's own Keystone attacked. The action must still apply; there is no
+        // forced check resolution for the mover's own Keystone.
+        let outcome = apply_action(&mut pos, Action::Move { from: sq(4, 6), to: sq(5, 6) })
+            .expect("exposing your own Keystone is fully legal");
+
+        // The mover (P1) threatened no ENEMY Keystone, so no check end.
+        assert!(!outcome.ended_on_check, "own-Keystone exposure is not an enemy check");
+        // P1's own Keystone is indeed now attacked by P2 (sanity check on the setup).
+        assert!(
+            checked_enemy_keystone_squares(&pos, Player::P2).contains(sq(4, 4)),
+            "the Spire now attacks P1's own Keystone"
+        );
+        // The shield piece relocated successfully.
+        assert!(pos.piece_at(sq(5, 6)).is_some(), "the shield moved");
+        assert!(pos.piece_at(sq(4, 6)).is_none(), "the shield's old square is vacant");
+    }
+
+    #[test]
+    fn quiet_two_moves_end_turn_on_ap_zero_without_check() {
+        let mut pos = empty_pos_with_ap(2);
+        // A lone P1 Stone with no enemy Keystones anywhere: nothing can be checked.
+        place(&mut pos, 4, 4, Piece::new(Player::P1, PieceKind::Stone, 1));
+
+        // First quiet Move: 2 -> 1 AP, turn continues.
+        let first = apply_action(&mut pos, Action::Move { from: sq(4, 4), to: sq(4, 5) })
+            .expect("first move must be legal");
+        assert!(!first.turn_ended, "one AP remains after the first move");
+        assert!(!first.ended_on_check);
+        assert_eq!(pos.turn.ap_remaining, 1);
+        assert_eq!(pos.to_move, Player::P1, "turn has not advanced yet");
+
+        // Second quiet Move: 1 -> 0 AP, turn ends via AP exhaustion, not check.
+        let second = apply_action(&mut pos, Action::Move { from: sq(4, 5), to: sq(4, 6) })
+            .expect("second move must be legal");
+        assert!(second.turn_ended, "the turn ends when AP reaches zero");
+        assert!(!second.ended_on_check, "AP exhaustion is not a check end");
+        assert_eq!(pos.to_move, Player::P2, "turn advanced to P2");
+        assert_eq!(pos.turn.ap_remaining, DEFAULT_AP, "new turn resets AP");
     }
 }

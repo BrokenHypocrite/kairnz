@@ -7,6 +7,7 @@ pub mod outcome;
 pub mod piece;
 pub mod position;
 pub mod square;
+pub mod turn;
 pub mod zobrist;
 
 #[cfg(test)]

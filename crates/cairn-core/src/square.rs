@@ -66,6 +66,11 @@ impl BitBoard81 {
         self.0 == 0
     }
 
+    /// Returns the squares set in `self` but not in `other` (set difference).
+    pub fn difference(self, other: BitBoard81) -> BitBoard81 {
+        BitBoard81(self.0 & !other.0 & BOARD_MASK)
+    }
+
     /// Iterates over all squares whose bits are set.
     pub fn iter(self) -> BitBoard81Iter {
         BitBoard81Iter(self.0 & BOARD_MASK)
@@ -137,6 +142,24 @@ mod tests {
         assert_eq!(collected.len(), 2);
         assert!(collected.contains(&s1));
         assert!(collected.contains(&s2));
+    }
+
+    #[test]
+    fn bitboard_difference_returns_bits_not_in_other() {
+        let mut a = BitBoard81::default();
+        let mut b = BitBoard81::default();
+        let only_a = Sq::new(1, 1).unwrap();
+        let shared = Sq::new(2, 2).unwrap();
+        let only_b = Sq::new(3, 3).unwrap();
+        a.set(only_a);
+        a.set(shared);
+        b.set(shared);
+        b.set(only_b);
+
+        let diff = a.difference(b);
+        assert!(diff.contains(only_a), "bit set only in self must remain");
+        assert!(!diff.contains(shared), "shared bit must be removed");
+        assert!(!diff.contains(only_b), "bit set only in other must not appear");
     }
 
     #[test]

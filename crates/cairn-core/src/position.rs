@@ -103,6 +103,8 @@ impl Position {
             zobrist: 0,
             ply: 0,
         };
+        pos.turn.enemy_checked_at_start =
+            crate::check::checked_enemy_keystone_squares(&pos, pos.to_move);
         pos.zobrist = zobrist_full(&pos);
         pos
     }
