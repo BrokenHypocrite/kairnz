@@ -5,51 +5,65 @@ use std::sync::Mutex;
 
 use kairnz_core::actions::Action;
 use kairnz_core::game::Game;
-use kairnz_onnx::{AzMctsConfig, AzMctsPolicy};
-use kairnz_policy::policy::Policy;
+use kairnz_onnx::{AzMctsConfig, BatchedAzMcts, DirectBatchEvaluator, OnnxEvaluator};
 
 /// Fixed seed for the in-app AI (deterministic; epsilon 0 means the seed is inert).
 const AI_SEED: u64 = 0;
 
-/// A loaded policy plus the model/strength it was built for.
+/// Number of leaves collected per batched MCTS step.
+const LEAVES_PER_STEP: usize = 8;
+
+/// A loaded evaluator plus the model path it was built for.
 struct Loaded {
     model: PathBuf,
-    simulations: u32,
-    policy: AzMctsPolicy,
+    evaluator: DirectBatchEvaluator,
 }
 
-/// Tauri-managed state holding a lazily-loaded, reusable AI policy.
+/// Tauri-managed state holding a lazily-loaded, reusable AI evaluator.
 #[derive(Default)]
 pub struct AiEngine {
     inner: Mutex<Option<Loaded>>,
 }
 
 impl AiEngine {
-    /// Chooses the AI's move for `game`, loading or reusing a policy for the given
-    /// model path and simulation budget. Returns an error string on model-load
-    /// failure or if no legal move exists.
+    /// Chooses the AI's move for `game`, loading or reusing an evaluator for the
+    /// given model path, then running a `BatchedAzMcts` search with the requested
+    /// simulation budget. Returns an error string on model-load failure or if no
+    /// legal move exists. With cuDNN on PATH the `OnnxEvaluator` uses the CUDA EP
+    /// automatically; otherwise it falls back to CPU transparently.
     pub fn choose(&self, game: &Game, model_path: &Path, simulations: u32) -> Result<Action, String> {
         let mut guard = self.inner.lock().map_err(|_| "AI engine lock poisoned".to_string())?;
 
+        // Reload the evaluator only when the model path changes; simulations is
+        // applied per-call via AzMctsConfig and does not affect the cached session.
         let needs_load = match guard.as_ref() {
-            Some(loaded) => loaded.model != model_path || loaded.simulations != simulations,
+            Some(loaded) => loaded.model != model_path,
             None => true,
         };
         if needs_load {
-            let config = AzMctsConfig {
-                simulations,
-                dirichlet_epsilon: 0.0,
-                ..AzMctsConfig::default()
-            };
-            let policy = AzMctsPolicy::from_path(model_path, config, AI_SEED)
+            let onnx = OnnxEvaluator::from_path(model_path)
                 .map_err(|e| format!("failed to load AI model: {e}"))?;
-            *guard = Some(Loaded { model: model_path.to_path_buf(), simulations, policy });
+            let evaluator = DirectBatchEvaluator::new(onnx);
+            *guard = Some(Loaded { model: model_path.to_path_buf(), evaluator });
         }
 
-        let loaded = guard.as_mut().expect("policy was just loaded");
-        loaded
-            .policy
-            .choose(game)
+        let loaded = guard.as_mut().expect("evaluator was just loaded");
+
+        // Build and run BatchedAzMcts while holding the lock so the &dyn
+        // BatchEvaluator borrow into loaded.evaluator remains valid.
+        let config = AzMctsConfig {
+            simulations,
+            dirichlet_epsilon: 0.0,
+            leaves_per_step: LEAVES_PER_STEP,
+            ..AzMctsConfig::default()
+        };
+        let mut mcts = BatchedAzMcts::new(&loaded.evaluator, config, AI_SEED);
+        let visits = mcts.search(game).map_err(|e| format!("MCTS search failed: {e}"))?;
+
+        visits
+            .into_iter()
+            .max_by_key(|&(_, v)| v)
+            .map(|(action, _)| action)
             .ok_or_else(|| "AI found no legal move".to_string())
     }
 }
