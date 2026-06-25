@@ -87,20 +87,21 @@ fn play_game(rule: RuleConfig, p1: &mut dyn Policy, p2: &mut dyn Policy) -> Game
 /// - odd `g`: baseline is P1, model is P2
 ///
 /// The seed offsets ensure each game gets a unique RNG starting point.
+/// Returns `Err` if `make_model` fails to construct the model for any game.
 fn run_match(
     games: u32,
     rule: RuleConfig,
-    make_model: &mut dyn FnMut(u64) -> Box<dyn Policy>,
+    make_model: &mut dyn FnMut(u64) -> Result<Box<dyn Policy>, String>,
     make_baseline: &mut dyn FnMut(u64) -> Box<dyn Policy>,
     base_seed: u64,
-) -> MatchResult {
+) -> Result<MatchResult, String> {
     let mut result = MatchResult::default();
     for g in 0..games {
         let model_is_p1 = g % 2 == 0;
         let seed_model = base_seed.wrapping_add(g as u64 * 2);
         let seed_baseline = base_seed.wrapping_add(g as u64 * 2 + 1);
 
-        let mut model = make_model(seed_model);
+        let mut model = make_model(seed_model)?;
         let mut baseline = make_baseline(seed_baseline);
 
         let outcome = if model_is_p1 {
@@ -121,7 +122,7 @@ fn run_match(
             GameResult::Draw(_) => result.draws += 1,
         }
     }
-    result
+    Ok(result)
 }
 
 fn main() -> ExitCode {
@@ -146,92 +147,98 @@ fn main() -> ExitCode {
 
     // -- Random baseline --
     {
-        let mut make_model = |seed: u64| -> Box<dyn Policy> {
-            Box::new(
-                AzMctsPolicy::from_path(&model_path, model_config, seed)
-                    .expect("model loads"),
-            )
+        let mut make_model = |seed: u64| -> Result<Box<dyn Policy>, String> {
+            AzMctsPolicy::from_path(&model_path, model_config, seed)
+                .map(|p| Box::new(p) as Box<dyn Policy>)
+                .map_err(|e| e.to_string())
         };
         let mut make_baseline = |seed: u64| -> Box<dyn Policy> {
             Box::new(RandomPolicy::seeded(seed))
         };
-        let r = run_match(
-            games,
-            rule.clone(),
-            &mut make_model,
-            &mut make_baseline,
-            base_seed,
-        );
-        println!(
-            "{}",
-            serde_json::json!({
-                "baseline": "random",
-                "wins": r.wins,
-                "draws": r.draws,
-                "losses": r.losses,
-                "score": r.score()
-            })
-        );
+        match run_match(games, rule.clone(), &mut make_model, &mut make_baseline, base_seed) {
+            Ok(r) => println!(
+                "{}",
+                serde_json::json!({
+                    "baseline": "random",
+                    "wins": r.wins,
+                    "draws": r.draws,
+                    "losses": r.losses,
+                    "score": r.score()
+                })
+            ),
+            Err(e) => {
+                eprintln!("failed to load model: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
     }
 
     // -- Greedy baseline --
     {
-        let mut make_model = |seed: u64| -> Box<dyn Policy> {
-            Box::new(
-                AzMctsPolicy::from_path(&model_path, model_config, seed)
-                    .expect("model loads"),
-            )
+        let mut make_model = |seed: u64| -> Result<Box<dyn Policy>, String> {
+            AzMctsPolicy::from_path(&model_path, model_config, seed)
+                .map(|p| Box::new(p) as Box<dyn Policy>)
+                .map_err(|e| e.to_string())
         };
         let mut make_baseline = |seed: u64| -> Box<dyn Policy> {
             Box::new(GreedyPolicy::seeded(seed))
         };
-        let r = run_match(
+        match run_match(
             games,
             rule.clone(),
             &mut make_model,
             &mut make_baseline,
             base_seed.wrapping_add(100_000),
-        );
-        println!(
-            "{}",
-            serde_json::json!({
-                "baseline": "greedy",
-                "wins": r.wins,
-                "draws": r.draws,
-                "losses": r.losses,
-                "score": r.score()
-            })
-        );
+        ) {
+            Ok(r) => println!(
+                "{}",
+                serde_json::json!({
+                    "baseline": "greedy",
+                    "wins": r.wins,
+                    "draws": r.draws,
+                    "losses": r.losses,
+                    "score": r.score()
+                })
+            ),
+            Err(e) => {
+                eprintln!("failed to load model: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
     }
 
     // -- MCTS baseline --
     {
-        let mut make_model = |seed: u64| -> Box<dyn Policy> {
-            Box::new(
-                AzMctsPolicy::from_path(&model_path, model_config, seed)
-                    .expect("model loads"),
-            )
+        let mut make_model = |seed: u64| -> Result<Box<dyn Policy>, String> {
+            AzMctsPolicy::from_path(&model_path, model_config, seed)
+                .map(|p| Box::new(p) as Box<dyn Policy>)
+                .map_err(|e| e.to_string())
         };
         let mut make_baseline = |seed: u64| -> Box<dyn Policy> {
             Box::new(MctsPolicy::new(DEFAULT_MCTS_BASELINE_ITERS, seed))
         };
-        let r = run_match(
+        match run_match(
             games,
             rule.clone(),
             &mut make_model,
             &mut make_baseline,
             base_seed.wrapping_add(200_000),
-        );
-        println!(
-            "{}",
-            serde_json::json!({
-                "baseline": "mcts",
-                "wins": r.wins,
-                "draws": r.draws,
-                "losses": r.losses,
-                "score": r.score()
-            })
-        );
+        ) {
+            Ok(r) => println!(
+                "{}",
+                serde_json::json!({
+                    "baseline": "mcts",
+                    "wins": r.wins,
+                    "draws": r.draws,
+                    "losses": r.losses,
+                    "score": r.score()
+                })
+            ),
+            Err(e) => {
+                eprintln!("failed to load model: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
     }
 
     ExitCode::SUCCESS
@@ -269,14 +276,17 @@ mod tests {
         let rule = fast_rule();
         let games = 2u32;
 
-        let mut make_model = |seed: u64| -> Box<dyn Policy> {
-            Box::new(AzMctsPolicy::from_path(&path, config, seed).expect("fixture loads"))
+        let mut make_model = |seed: u64| -> Result<Box<dyn Policy>, String> {
+            AzMctsPolicy::from_path(&path, config, seed)
+                .map(|p| Box::new(p) as Box<dyn Policy>)
+                .map_err(|e| e.to_string())
         };
         let mut make_baseline = |seed: u64| -> Box<dyn Policy> {
             Box::new(RandomPolicy::seeded(seed))
         };
 
-        let result = run_match(games, rule, &mut make_model, &mut make_baseline, 42);
+        let result = run_match(games, rule, &mut make_model, &mut make_baseline, 42)
+            .expect("fixture loads");
 
         assert_eq!(
             result.wins + result.draws + result.losses,
@@ -297,14 +307,17 @@ mod tests {
         let rule = fast_rule();
         let games = 2u32;
 
-        let mut make_model = |seed: u64| -> Box<dyn Policy> {
-            Box::new(AzMctsPolicy::from_path(&path, config, seed).expect("fixture loads"))
+        let mut make_model = |seed: u64| -> Result<Box<dyn Policy>, String> {
+            AzMctsPolicy::from_path(&path, config, seed)
+                .map(|p| Box::new(p) as Box<dyn Policy>)
+                .map_err(|e| e.to_string())
         };
         let mut make_baseline = |seed: u64| -> Box<dyn Policy> {
             Box::new(GreedyPolicy::seeded(seed))
         };
 
-        let result = run_match(games, rule, &mut make_model, &mut make_baseline, 43);
+        let result = run_match(games, rule, &mut make_model, &mut make_baseline, 43)
+            .expect("fixture loads");
 
         assert_eq!(result.wins + result.draws + result.losses, games);
         assert!((0.0..=1.0).contains(&result.score()));
@@ -317,14 +330,17 @@ mod tests {
         let rule = fast_rule();
         let games = 2u32;
 
-        let mut make_model = |seed: u64| -> Box<dyn Policy> {
-            Box::new(AzMctsPolicy::from_path(&path, config, seed).expect("fixture loads"))
+        let mut make_model = |seed: u64| -> Result<Box<dyn Policy>, String> {
+            AzMctsPolicy::from_path(&path, config, seed)
+                .map(|p| Box::new(p) as Box<dyn Policy>)
+                .map_err(|e| e.to_string())
         };
         let mut make_baseline = |seed: u64| -> Box<dyn Policy> {
             Box::new(MctsPolicy::new(4, seed))
         };
 
-        let result = run_match(games, rule, &mut make_model, &mut make_baseline, 44);
+        let result = run_match(games, rule, &mut make_model, &mut make_baseline, 44)
+            .expect("fixture loads");
 
         assert_eq!(result.wins + result.draws + result.losses, games);
         assert!((0.0..=1.0).contains(&result.score()));
