@@ -64,6 +64,11 @@ impl GateResult {
 /// alternating which model plays P1 to cancel first-player bias, and returns the
 /// tally from model A's perspective.
 ///
+/// `game_offset` shifts the global game index used for per-game seed and color
+/// alternation. A worker playing the slice `[offset .. offset + games)` must pass
+/// its starting offset so that game indices match what a single-process run over
+/// all games would produce. Pass `0` for the standard single-process case.
+///
 /// Each model runs as a [`BatchedAzMcts`] backed by its own
 /// [`DirectBatchEvaluator`] (single-threaded gate; one session per model). The
 /// `config` carries `dirichlet_epsilon` so games vary by seed, and
@@ -76,12 +81,16 @@ pub fn run_gate(
     config: AzMctsConfig,
     rule: RuleConfig,
     base_seed: u64,
+    game_offset: u32,
 ) -> ort::Result<GateResult> {
     let eval_a = DirectBatchEvaluator::new(OnnxEvaluator::from_path(model_a)?);
     let eval_b = DirectBatchEvaluator::new(OnnxEvaluator::from_path(model_b)?);
 
     let mut result = GateResult { a_wins: 0, b_wins: 0, draws: 0 };
-    for g in 0..games {
+    for i in 0..games {
+        // Use the global game index so seed and color assignment are identical
+        // to a single-process run covering the same range.
+        let g = game_offset + i;
         let a_is_p1 = g % 2 == 0;
 
         // BatchedAzMcts borrows its evaluator by reference, so the evaluators
@@ -148,13 +157,46 @@ mod tests {
     fn gate_tally_sums_to_games_and_is_reproducible() {
         let path = fixture();
         let games = 2;
-        let r1 = run_gate(&path, &path, games, gate_config(), fast_rule(), 7)
+        let r1 = run_gate(&path, &path, games, gate_config(), fast_rule(), 7, 0)
             .expect("gate runs");
         assert_eq!(r1.a_wins + r1.b_wins + r1.draws, games, "tally sums to games");
         assert!((0.0..=1.0).contains(&r1.a_score()));
 
-        let r2 = run_gate(&path, &path, games, gate_config(), fast_rule(), 7)
+        let r2 = run_gate(&path, &path, games, gate_config(), fast_rule(), 7, 0)
             .expect("gate runs");
         assert_eq!(r1, r2, "same seed yields the same gate result");
+    }
+
+    /// Splitting `[0..4)` into `[0..2)` + `[2..4)` and summing must give the
+    /// same tally as playing all four games in one block. We assert that totals
+    /// sum to `games` and that the combined result matches the monolithic run.
+    #[test]
+    fn split_games_equal_single_block() {
+        let path = fixture();
+        let seed = 42;
+        let games = 4;
+
+        let full = run_gate(&path, &path, games, gate_config(), fast_rule(), seed, 0)
+            .expect("full gate runs");
+
+        let first_half =
+            run_gate(&path, &path, games / 2, gate_config(), fast_rule(), seed, 0)
+                .expect("first half runs");
+        let second_half =
+            run_gate(&path, &path, games / 2, gate_config(), fast_rule(), seed, games / 2)
+                .expect("second half runs");
+
+        let combined = GateResult {
+            a_wins: first_half.a_wins + second_half.a_wins,
+            b_wins: first_half.b_wins + second_half.b_wins,
+            draws: first_half.draws + second_half.draws,
+        };
+
+        assert_eq!(
+            combined.a_wins + combined.b_wins + combined.draws,
+            games,
+            "combined tally must sum to total games"
+        );
+        assert_eq!(combined, full, "split run must match monolithic run exactly");
     }
 }

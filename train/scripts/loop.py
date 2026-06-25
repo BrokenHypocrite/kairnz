@@ -115,7 +115,7 @@ def main() -> None:
         gate_out = _run_rust("gate", [
             "--model-a", str(candidate), "--model-b", str(best),
             "--games", str(args.gate_games), "--simulations", str(args.gate_sims),
-            "--seed", str(it),
+            "--seed", str(it), "--threads", str(args.threads),
         ])
         score = json.loads(gate_out.strip())["a_score"]
         promoted = should_promote(score, PROMOTE_THRESHOLD)
