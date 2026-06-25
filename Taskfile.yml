@@ -14,6 +14,12 @@ tasks:
   bench: { cmds: ["cargo run -p kairnz-bench --"] }
   ui: { dir: ui, cmds: ["pnpm install", "pnpm tauri dev"] }
 
+  # Run the Tauri dev app with cuDNN on PATH so ONNX Runtime uses the GPU.
+  # Mirrors the TORCH_LIB PATH pattern used by the GPU training targets above.
+  app-gpu:
+    cmds:
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; pnpm tauri dev'
+
   # Verify the ONNX Runtime CUDA backend engages. Prints "backend: CUDA" when the
   # GPU path is wired correctly, or "backend: CPU (...)" if cuDNN is unavailable.
   # Runs via PowerShell so the backslash PATH survives (Task's sh strips them).

@@ -13,9 +13,9 @@
 
   /** Difficulty label to simulation-count mapping. */
   const DIFFICULTY_OPTIONS: { label: string; sims: number }[] = [
-    { label: 'Easy', sims: 50 },
-    { label: 'Medium', sims: 200 },
-    { label: 'Hard', sims: 800 },
+    { label: 'Easy', sims: 100 },
+    { label: 'Medium', sims: 400 },
+    { label: 'Hard', sims: 1600 },
   ];
 
   interface Props {
