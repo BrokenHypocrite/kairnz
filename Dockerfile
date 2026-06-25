@@ -3,7 +3,7 @@ FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates build-essential pkg-config git && rm -rf /var/lib/apt/lists/*
+    curl ca-certificates build-essential pkg-config git libssl-dev && rm -rf /var/lib/apt/lists/*
 
 # Rust toolchain.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
