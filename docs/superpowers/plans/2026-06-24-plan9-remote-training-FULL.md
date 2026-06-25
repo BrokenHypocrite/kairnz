@@ -43,7 +43,7 @@
 
 # Phase A - Resume
 
-### Task A1: Resume the training loop
+### Task 1: Resume the training loop (A1)
 
 **Files:** Modify `train/kairnz_train/orchestrate.py`, `train/scripts/loop.py`; add tests to `train/tests/test_orchestrate_warmstart.py`.
 
@@ -125,7 +125,7 @@ git commit -m "feat(train): resume the loop from existing best + metrics"
 
 # Phase B - Headless deployment
 
-### Task B1: Dockerfile + build verification
+### Task 2: Dockerfile + build verification (B1)
 
 **Files:** Create `Dockerfile`, `.dockerignore`.
 
@@ -181,7 +181,7 @@ git add Dockerfile .dockerignore
 git commit -m "feat(deploy): Dockerfile for headless GPU training"
 ```
 
-### Task B2: Remote launch script + Taskfile target
+### Task 3: Remote launch script + Taskfile target (B2)
 
 **Files:** Create `scripts/run_remote.sh`; modify `Taskfile.yml`.
 
@@ -210,7 +210,7 @@ git commit -m "feat(deploy): remote launch script + task target"
 
 # Phase C - Batched inference + virtual loss (core)
 
-### Task C1: Batched evaluator surface
+### Task 4: Batched evaluator surface (C1)
 
 **Files:** Modify `crates/kairnz-onnx/src/evaluator.rs`; create `crates/kairnz-onnx/src/batch.rs`; modify `lib.rs`.
 
@@ -267,7 +267,7 @@ git add crates/kairnz-onnx/src/evaluator.rs crates/kairnz-onnx/src/batch.rs crat
 git commit -m "feat(onnx): batched evaluator + BatchEvaluator trait"
 ```
 
-### Task C2: The shared InferenceServer
+### Task 5: The shared InferenceServer (C2)
 
 **Files:** Modify `crates/kairnz-onnx/src/batch.rs`; `lib.rs`.
 
@@ -376,7 +376,7 @@ git add crates/kairnz-onnx/src/batch.rs crates/kairnz-onnx/src/lib.rs crates/kai
 git commit -m "feat(onnx): shared InferenceServer batches across threads"
 ```
 
-### Task C3: BatchedAzMcts (virtual loss)
+### Task 6: BatchedAzMcts (virtual loss) (C3)
 
 **Files:** Create `crates/kairnz-onnx/src/batched_mcts.rs`; modify `lib.rs`.
 
@@ -427,7 +427,7 @@ git add crates/kairnz-onnx/src/batched_mcts.rs crates/kairnz-onnx/src/mcts.rs cr
 git commit -m "feat(onnx): BatchedAzMcts with virtual-loss leaf batching"
 ```
 
-### Task C4: Self-play on the shared server
+### Task 7: Self-play on the shared server (C4)
 
 **Files:** Modify `crates/kairnz-selfplay/src/parallel.rs`, `crates/kairnz-selfplay/src/play.rs` (if it takes `&mut AzMcts`), `crates/kairnz-selfplay/src/bin/selfplay.rs`.
 
@@ -450,7 +450,7 @@ git add crates/kairnz-selfplay/src/parallel.rs crates/kairnz-selfplay/src/play.r
 git commit -m "feat(selfplay): batched self-play on a shared inference server"
 ```
 
-### Task C5: Gate on the batched path
+### Task 8: Gate on the batched path (C5)
 
 **Files:** Modify `crates/kairnz-selfplay/src/gate.rs`, `crates/kairnz-selfplay/src/bin/gate.rs`.
 
@@ -465,7 +465,7 @@ git commit -m "feat(selfplay): gate uses batched virtual-loss search"
 
 # Phase D - Web dashboard
 
-### Task D1: Dashboard server + endpoints
+### Task 9: Dashboard server + endpoints (D1)
 
 **Files:** Create `train/kairnz_train/dashboard.py`; add `train/tests/test_dashboard.py`.
 
@@ -480,7 +480,7 @@ git add train/kairnz_train/dashboard.py train/tests/test_dashboard.py
 git commit -m "feat(train): web dashboard server + JSON endpoints"
 ```
 
-### Task D2: Dashboard page + task target + docs
+### Task 10: Dashboard page + task target + docs (D2)
 
 **Files:** Create `train/kairnz_train/static/dashboard.html`; modify `Taskfile.yml`.
 
@@ -496,7 +496,7 @@ git commit -m "feat(train): live dashboard page + task target"
 
 # Phase E - App AI upgrade
 
-### Task E1: App uses BatchedAzMcts + GPU
+### Task 11: App uses BatchedAzMcts + GPU (E1)
 
 **Files:** Modify `src-tauri/src/ai.rs`.
 
@@ -507,7 +507,7 @@ git add src-tauri/src/ai.rs
 git commit -m "feat(app): app AI uses batched virtual-loss search (GPU-capable)"
 ```
 
-### Task E2: GPU launch target + difficulty bump
+### Task 12: GPU launch target + difficulty bump (E2)
 
 **Files:** Modify `Taskfile.yml`, `ui/src/components/ConfigPanel.svelte`.
 
@@ -523,7 +523,7 @@ git commit -m "feat(app): GPU launch target + stronger difficulty levels"
 
 # Phase F - Validation + runbook
 
-### Task F1: Strength-vs-baselines harness
+### Task 13: Strength-vs-baselines harness (F1)
 
 **Files:** Create `crates/kairnz-selfplay/src/bin/strength.rs`.
 
@@ -538,7 +538,7 @@ git add crates/kairnz-selfplay/src/bin/strength.rs
 git commit -m "feat(eval): strength-vs-baselines harness (random/greedy/mcts)"
 ```
 
-### Task F2: Runbook
+### Task 14: Runbook (F2)
 
 **Files:** Create `docs/RUNBOOK-remote-training.md`.
 
