@@ -7,10 +7,12 @@
 pub mod evaluator;
 pub mod policy;
 pub mod mcts;
+pub mod batch;
 
 pub use evaluator::OnnxEvaluator;
 pub use policy::OnnxPolicy;
 pub use mcts::{AzMctsConfig, AzMctsPolicy};
+pub use batch::{BatchEvaluator, DirectBatchEvaluator};
 
 /// The execution backend a session is running on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
