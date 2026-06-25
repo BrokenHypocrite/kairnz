@@ -84,3 +84,13 @@ tasks:
       WORK: '{{.WORK | default "loop-run"}}'
     cmds:
       - powershell -NoProfile -Command 'cd train; uv run python scripts/status_window.py --work "../{{.WORK}}"'
+
+  # Serve the live web dashboard. Reach it via an SSH tunnel on the remote box:
+  #   ssh -L 8080:127.0.0.1:8080 user@box
+  # Override vars, e.g.
+  #   task dashboard WORK=remote-run
+  dashboard:
+    vars:
+      WORK: '{{.WORK | default "loop-run"}}'
+    cmds:
+      - powershell -NoProfile -Command 'cd train; uv run python -m kairnz_train.dashboard --work "../{{.WORK}}"'
