@@ -6,19 +6,27 @@ use kairnz_core::config::RuleConfig;
 use kairnz_core::game::Game;
 use kairnz_core::outcome::{DrawReason, GameResult};
 use kairnz_core::piece::Player;
-use kairnz_onnx::{AzMctsConfig, AzMctsPolicy};
-use kairnz_policy::policy::Policy;
+use kairnz_onnx::{AzMctsConfig, BatchedAzMcts, DirectBatchEvaluator, OnnxEvaluator, Searcher};
 
-/// Plays one game from the standard opening between `p1` (P1) and `p2` (P2),
-/// returning the terminal result. Never panics: a `None` choice or an illegal
-/// action defensively ends the game.
-pub fn play_match(config: RuleConfig, p1: &mut dyn Policy, p2: &mut dyn Policy) -> GameResult {
+/// Default number of leaves collected per batched search step in the gate.
+pub const GATE_LEAVES_PER_STEP: usize = 8;
+
+/// Plays one game from the standard opening between `p1` (P1) and `p2` (P2)
+/// using the [`Searcher`] interface, returning the terminal result. Each move
+/// picks the highest-visit-count action from the search. Never panics: an empty
+/// search result or an illegal action defensively ends the game.
+pub fn play_match(
+    config: RuleConfig,
+    p1: &mut dyn Searcher,
+    p2: &mut dyn Searcher,
+) -> ort::Result<GameResult> {
     let mut game = Game::new_standard(config);
     while game.terminal_result().is_none() {
         let mover = game.pos.to_move;
-        let policy: &mut dyn Policy = if mover == Player::P1 { p1 } else { p2 };
-        match policy.choose(&game) {
-            Some(action) => {
+        let searcher: &mut dyn Searcher = if mover == Player::P1 { p1 } else { p2 };
+        let visits = searcher.search(&game)?;
+        match visits.into_iter().max_by_key(|(_, v)| *v) {
+            Some((action, _)) => {
                 if game.apply(action).is_err() {
                     break;
                 }
@@ -26,7 +34,7 @@ pub fn play_match(config: RuleConfig, p1: &mut dyn Policy, p2: &mut dyn Policy) 
             None => break,
         }
     }
-    game.terminal_result().unwrap_or(GameResult::Draw(DrawReason::MaxPlies))
+    Ok(game.terminal_result().unwrap_or(GameResult::Draw(DrawReason::MaxPlies)))
 }
 
 /// Tally of a gate match from model A's perspective.
@@ -56,8 +64,11 @@ impl GateResult {
 /// alternating which model plays P1 to cancel first-player bias, and returns the
 /// tally from model A's perspective.
 ///
-/// Both sides use `AzMctsPolicy` with `config` (which should carry a small
-/// Dirichlet epsilon so games vary). The models are loaded once and reused.
+/// Each model runs as a [`BatchedAzMcts`] backed by its own
+/// [`DirectBatchEvaluator`] (single-threaded gate; one session per model). The
+/// `config` carries `dirichlet_epsilon` so games vary by seed, and
+/// `leaves_per_step` controls the batch size (defaulting to
+/// [`GATE_LEAVES_PER_STEP`] when not overridden by the caller).
 pub fn run_gate(
     model_a: &Path,
     model_b: &Path,
@@ -66,17 +77,27 @@ pub fn run_gate(
     rule: RuleConfig,
     base_seed: u64,
 ) -> ort::Result<GateResult> {
-    let mut policy_a = AzMctsPolicy::from_path(model_a, config, base_seed)?;
-    let mut policy_b = AzMctsPolicy::from_path(model_b, config, base_seed.wrapping_add(1))?;
+    let eval_a = DirectBatchEvaluator::new(OnnxEvaluator::from_path(model_a)?);
+    let eval_b = DirectBatchEvaluator::new(OnnxEvaluator::from_path(model_b)?);
 
     let mut result = GateResult { a_wins: 0, b_wins: 0, draws: 0 };
     for g in 0..games {
         let a_is_p1 = g % 2 == 0;
+
+        // BatchedAzMcts borrows its evaluator by reference, so the evaluators
+        // must outlive the searchers. Both are rebuilt each game so the RNG
+        // seed is deterministic per game index.
+        let seed_a = base_seed.wrapping_add(g as u64 * 2);
+        let seed_b = base_seed.wrapping_add(g as u64 * 2 + 1);
+        let mut searcher_a = BatchedAzMcts::new(&eval_a, config, seed_a);
+        let mut searcher_b = BatchedAzMcts::new(&eval_b, config, seed_b);
+
         let outcome = if a_is_p1 {
-            play_match(rule.clone(), &mut policy_a, &mut policy_b)
+            play_match(rule.clone(), &mut searcher_a, &mut searcher_b)?
         } else {
-            play_match(rule.clone(), &mut policy_b, &mut policy_a)
+            play_match(rule.clone(), &mut searcher_b, &mut searcher_a)?
         };
+
         match outcome {
             GameResult::Win(winner) => {
                 let a_player = if a_is_p1 { Player::P1 } else { Player::P2 };
@@ -104,7 +125,12 @@ mod tests {
 
     fn gate_config() -> AzMctsConfig {
         // Small sims keep the test fast; epsilon > 0 makes games vary by seed.
-        AzMctsConfig { simulations: 8, dirichlet_epsilon: 0.15, ..AzMctsConfig::default() }
+        AzMctsConfig {
+            simulations: 8,
+            dirichlet_epsilon: 0.15,
+            leaves_per_step: GATE_LEAVES_PER_STEP,
+            ..AzMctsConfig::default()
+        }
     }
 
     fn fast_rule() -> RuleConfig {
