@@ -419,7 +419,15 @@
           bind:showPrevMove
         />
       {/if}
-      <ConfigPanel bind:config onNewGame={handleNewGame} disabled={busy} />
+      <ConfigPanel
+        bind:config
+        onNewGame={handleNewGame}
+        disabled={busy}
+        bind:aiEnabled
+        bind:aiSide
+        bind:aiSims
+        bind:aiModel
+      />
     </div>
   </div>
 </main>

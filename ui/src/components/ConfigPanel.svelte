@@ -1,22 +1,42 @@
 <!--
-  ConfigPanel.svelte -- Rule configuration and new-game launcher.
+  ConfigPanel.svelte -- Rule configuration, AI opponent settings, and new-game launcher.
 
-  Binds to a RuleConfig; emits "newgame" when the user clicks "New Game".
-  The panel is collapsible (default collapsed). The "New Game" button is always
-  visible in the header area so a new game can be started without expanding.
-  Labels come from names.ts where applicable; other labels match Rust field names.
+  Binds to a RuleConfig and four AI state values; emits "newgame" when the user
+  clicks "New Game". The panel is collapsible (default collapsed). The "New Game"
+  button is always visible in the header area so a new game can be started without
+  expanding. Labels come from names.ts where applicable; other labels match Rust
+  field names.
 -->
 <script lang="ts">
-  import type { RuleConfig, SpireMode } from '../lib/types.js';
+  import type { Player, RuleConfig, SpireMode } from '../lib/types.js';
   import { names } from '../lib/names.js';
+
+  /** Difficulty label to simulation-count mapping. */
+  const DIFFICULTY_OPTIONS: { label: string; sims: number }[] = [
+    { label: 'Easy', sims: 50 },
+    { label: 'Medium', sims: 200 },
+    { label: 'Hard', sims: 800 },
+  ];
 
   interface Props {
     config: RuleConfig;
     onNewGame: (cfg: RuleConfig) => void;
     disabled?: boolean;
+    aiEnabled: boolean;
+    aiSide: Player;
+    aiSims: number;
+    aiModel: string;
   }
 
-  let { config = $bindable(), onNewGame, disabled = false }: Props = $props();
+  let {
+    config = $bindable(),
+    onNewGame,
+    disabled = false,
+    aiEnabled = $bindable(),
+    aiSide = $bindable(),
+    aiSims = $bindable(),
+    aiModel = $bindable(),
+  }: Props = $props();
 
   /** Whether the rule controls are expanded. Defaults to collapsed. */
   let expanded = $state(false);
@@ -90,6 +110,68 @@
         />
         <label for="keystone-single-move">Keystone single move</label>
       </div>
+
+      <div class="section-divider"></div>
+
+      <div class="section-label">AI Opponent</div>
+
+      <div class="field field-check">
+        <input
+          id="ai-enabled"
+          type="checkbox"
+          bind:checked={aiEnabled}
+          {disabled}
+        />
+        <label for="ai-enabled">Play vs AI</label>
+      </div>
+
+      {#if aiEnabled}
+        <fieldset class="field field-radio">
+          <legend class="field-legend">AI plays</legend>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="ai-side"
+                value="P1"
+                bind:group={aiSide}
+                {disabled}
+              />
+              P1
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="ai-side"
+                value="P2"
+                bind:group={aiSide}
+                {disabled}
+              />
+              P2
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="field">
+          <label for="ai-difficulty">Difficulty</label>
+          <select id="ai-difficulty" bind:value={aiSims} {disabled}>
+            {#each DIFFICULTY_OPTIONS as opt}
+              <option value={opt.sims}>{opt.label}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="ai-model">Model path</label>
+          <input
+            id="ai-model"
+            type="text"
+            bind:value={aiModel}
+            placeholder="models/best.onnx"
+            {disabled}
+          />
+        </div>
+      {/if}
     </div>
   {/if}
 </section>
@@ -209,5 +291,56 @@
   .btn-new-game:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .section-divider {
+    height: 1px;
+    background: #e0d8ce;
+    margin: 0.2rem 0;
+  }
+
+  .section-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--board-border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .field-radio {
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .field-legend {
+    font-size: 0.85rem;
+    color: #444;
+    padding: 0;
+    margin-bottom: 0.2rem;
+  }
+
+  .radio-group {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    color: #444;
+    cursor: pointer;
+  }
+
+  input[type='text'] {
+    padding: 0.25rem 0.4rem;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    background: #fff;
+    width: 100%;
+    box-sizing: border-box;
   }
 </style>
