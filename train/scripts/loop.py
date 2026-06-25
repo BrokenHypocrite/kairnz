@@ -59,7 +59,14 @@ def main() -> None:
     parser.add_argument("--blocks", type=int, default=5)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
-    parser.add_argument("--threads", type=int, default=0, help="Self-play thread count (0 = auto).")
+    parser.add_argument("--threads", type=int, default=0, help="Self-play thread/process count (0 = auto).")
+    parser.add_argument("--batched", action="store_true",
+                        help="Self-play uses one shared batched inference server (GPU-bottleneck mode) "
+                             "instead of one ONNX session per worker process.")
+    parser.add_argument("--max-batch", type=int, default=256,
+                        help="Max positions per GPU batch in batched self-play.")
+    parser.add_argument("--leaves-per-step", type=int, default=8,
+                        help="Leaves collected per batched MCTS step in batched self-play.")
     parser.add_argument("--resume", action="store_true",
                         help="Continue from existing best model and metrics instead of re-seeding.")
     args = parser.parse_args()
@@ -95,11 +102,18 @@ def main() -> None:
                                    "stage": "self-play", "samples": 0,
                                    "last_score": None, "promoted_count": promoted_count})
         shard = shards_dir / f"iter{it:04d}.safetensors"
-        _run_rust("selfplay", [
+        selfplay_args = [
             "--model", str(best), "--out", str(shard),
             "--games", str(args.selfplay_games), "--simulations", str(args.selfplay_sims),
             "--seed", str(it), "--threads", str(args.threads),
-        ])
+        ]
+        if args.batched:
+            selfplay_args += [
+                "--batched",
+                "--max-batch", str(args.max_batch),
+                "--leaves-per-step", str(args.leaves_per_step),
+            ]
+        _run_rust("selfplay", selfplay_args)
 
         write_status(status_path, {"iteration": it, "total_iterations": args.iterations,
                                    "stage": "training", "samples": 0,

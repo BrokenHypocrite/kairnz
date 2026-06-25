@@ -65,8 +65,70 @@ fn main() -> ExitCode {
 
     if args.worker {
         run_worker(args)
+    } else if args.batched {
+        run_batched(args)
     } else {
         run_coordinator(args)
+    }
+}
+
+/// Batched path: a single in-process [`InferenceServer`] coalesces leaf
+/// evaluations from `threads` search threads into large GPU batches, instead of
+/// each worker firing one-position calls. Use when the GPU is the bottleneck
+/// (a capable GPU with a non-trivial net): far fewer kernel launches and real
+/// batch utilisation. Writes the shard directly; no worker subprocesses or
+/// fragment files.
+fn run_batched(args: Args) -> ExitCode {
+    let n = if args.threads == 0 {
+        std::thread::available_parallelism().map(|p| p.get()).unwrap_or(1)
+    } else {
+        args.threads
+    }
+    .max(1);
+
+    let config = SelfPlayConfig {
+        simulations: args.simulations,
+        temperature_cutoff: args.temperature_cutoff,
+        ..SelfPlayConfig::default()
+    };
+
+    println!(
+        "self-play (batched): {n} threads, {} games, max_batch {}, leaves/step {}",
+        args.games, args.max_batch, args.leaves_per_step
+    );
+
+    let samples = match parallel_self_play(
+        &args.model,
+        args.games,
+        n,
+        config.mcts_config(),
+        RuleConfig::default(),
+        config.temperature_cutoff,
+        args.seed,
+        true,
+        args.max_batch,
+        args.leaves_per_step,
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("batched self-play failed: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    match write_shard(&samples, &args.out) {
+        Ok(()) => {
+            println!(
+                "self-play: {n} threads, {} samples -> {}",
+                samples.len(),
+                args.out.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("batched self-play failed to write shard: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
