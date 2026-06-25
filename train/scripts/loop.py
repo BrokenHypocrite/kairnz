@@ -14,6 +14,7 @@ from kairnz_train.model import KairnzNet
 from kairnz_train.onnx_export import export_onnx
 from kairnz_train.orchestrate import (
     PROMOTE_THRESHOLD,
+    resolve_start,
     save_checkpoint,
     select_window,
     should_promote,
@@ -59,6 +60,8 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--threads", type=int, default=0, help="Self-play thread count (0 = auto).")
+    parser.add_argument("--resume", action="store_true",
+                        help="Continue from existing best model and metrics instead of re-seeding.")
     args = parser.parse_args()
 
     # Resolve to an absolute path: the Rust self-play and gate subprocesses run
@@ -74,17 +77,20 @@ def main() -> None:
     status_path = work / "status.json"
     metrics_path = work / "metrics.jsonl"
 
-    # Iteration 0: seed best with a fresh random network at the target size.
-    seed_model = KairnzNet(filters=args.filters, blocks=args.blocks)
-    save_checkpoint(seed_model, best_pt)
-    export_onnx(seed_model, best)
-    write_status(status_path, {"iteration": 0, "total_iterations": args.iterations,
-                               "stage": "seeding", "samples": 0, "last_score": None,
-                               "promoted_count": 0})
-    print(f"seeded {best}")
+    start_iter, seed_fresh = resolve_start(best, best_pt, metrics_path, args.resume)
+    if seed_fresh:
+        seed_model = KairnzNet(filters=args.filters, blocks=args.blocks)
+        save_checkpoint(seed_model, best_pt)
+        export_onnx(seed_model, best)
+        write_status(status_path, {"iteration": 0, "total_iterations": args.iterations,
+                                   "stage": "seeding", "samples": 0, "last_score": None,
+                                   "promoted_count": 0})
+        print(f"seeded {best}")
+    else:
+        print(f"resuming from {best} at iteration {start_iter}")
 
     promoted_count = 0
-    for it in range(args.iterations):
+    for it in range(start_iter, start_iter + args.iterations):
         write_status(status_path, {"iteration": it, "total_iterations": args.iterations,
                                    "stage": "self-play", "samples": 0,
                                    "last_score": None, "promoted_count": promoted_count})

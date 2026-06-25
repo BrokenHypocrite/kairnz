@@ -57,6 +57,24 @@ def load_checkpoint(model: torch.nn.Module, path: Path) -> None:
     model.load_state_dict(torch.load(str(path), map_location="cpu"))
 
 
+def next_iteration(metrics_path: Path) -> int:
+    """Returns one past the highest `iter` recorded in metrics.jsonl, or 0 if none."""
+    rows = load_metrics(metrics_path)
+    return max((r["iter"] for r in rows), default=-1) + 1
+
+
+def resolve_start(best: Path, best_pt: Path, metrics_path: Path, resume: bool) -> tuple[int, bool]:
+    """Decides where the loop starts.
+
+    Returns (start_iter, seed_fresh). When `resume` is set and both best artifacts
+    exist, continue from the recorded iteration without re-seeding; otherwise start
+    at 0 and seed a fresh random network.
+    """
+    if resume and best.exists() and best_pt.exists():
+        return next_iteration(metrics_path), False
+    return 0, True
+
+
 def should_promote(a_score: float, threshold: float = PROMOTE_THRESHOLD) -> bool:
     """Returns True when a candidate's gate score clears the threshold."""
     return a_score >= threshold

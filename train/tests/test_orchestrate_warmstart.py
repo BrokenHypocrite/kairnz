@@ -55,3 +55,22 @@ def test_load_metrics_parses_lines(tmp_path):
     path.write_text('{"iter": 0, "a_score": 0.3}\n{"iter": 1, "a_score": 0.6}\n')
     rows = load_metrics(path)
     assert len(rows) == 2 and rows[1]["a_score"] == 0.6
+
+
+def test_next_iteration_counts_from_metrics(tmp_path):
+    from kairnz_train.orchestrate import next_iteration
+
+    p = tmp_path / "metrics.jsonl"
+    assert next_iteration(p) == 0
+    p.write_text('{"iter": 0}\n{"iter": 1}\n{"iter": 2}\n')
+    assert next_iteration(p) == 3
+
+
+def test_resolve_start_resumes_only_when_artifacts_exist(tmp_path):
+    from kairnz_train.orchestrate import resolve_start
+
+    best, best_pt, metrics = tmp_path / "b.onnx", tmp_path / "b.pt", tmp_path / "m.jsonl"
+    assert resolve_start(best, best_pt, metrics, resume=True) == (0, True)  # nothing yet
+    best.write_text("x"); best_pt.write_text("x"); metrics.write_text('{"iter": 4}\n')
+    assert resolve_start(best, best_pt, metrics, resume=True) == (5, False)
+    assert resolve_start(best, best_pt, metrics, resume=False) == (0, True)  # resume off
