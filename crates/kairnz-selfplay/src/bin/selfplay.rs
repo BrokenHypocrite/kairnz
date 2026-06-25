@@ -32,10 +32,17 @@ struct Args {
     /// Worker threads (0 = auto-detect available parallelism).
     #[arg(long, default_value_t = 0)]
     threads: usize,
-    /// Maximum positions per GPU batch sent to the inference server.
+    /// Use a single shared inference server (batched GPU path).
+    /// By default (without this flag), each thread runs its own ONNX session,
+    /// keeping all CPU cores busy -- optimal when the net is small and CPU is
+    /// the bottleneck.  Pass --batched when the GPU is the bottleneck and you
+    /// want to maximise batch utilisation.
+    #[arg(long, default_value_t = false)]
+    batched: bool,
+    /// Maximum positions per GPU batch (only used with --batched).
     #[arg(long, default_value_t = DEFAULT_MAX_BATCH)]
     max_batch: usize,
-    /// Leaves collected and evaluated per batched MCTS step.
+    /// Leaves collected and evaluated per batched MCTS step (only used with --batched).
     #[arg(long, default_value_t = 8)]
     leaves_per_step: usize,
 }
@@ -57,7 +64,11 @@ fn main() -> ExitCode {
     // Load once just to report the execution backend.
     match OnnxEvaluator::from_path(&args.model) {
         Ok(evaluator) => {
-            println!("self-play backend: {:?}, threads: {threads}", evaluator.backend());
+            println!(
+                "self-play backend: {:?}, threads: {threads}, mode: {}",
+                evaluator.backend(),
+                if args.batched { "batched" } else { "per-thread" }
+            );
         }
         Err(error) => {
             eprintln!("failed to load model: {error}");
@@ -73,6 +84,7 @@ fn main() -> ExitCode {
         RuleConfig::default(),
         config.temperature_cutoff,
         args.seed,
+        args.batched,
         args.max_batch,
         args.leaves_per_step,
     ) {
