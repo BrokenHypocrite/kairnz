@@ -6,6 +6,7 @@ and trains in-process between rounds. Maintains best.onnx and a metrics log.
 
 import argparse
 import json
+import math
 import shutil
 import subprocess
 from pathlib import Path
@@ -25,6 +26,19 @@ from kairnz_train.orchestrate import (
 
 # Repository root relative to this script (train/scripts/loop.py -> repo root).
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _decayed_lr(base_lr: float, min_lr: float, it: int, start: int, total: int) -> float:
+    """Cosine-decays the learning rate from base_lr to min_lr across the run.
+
+    A fixed LR can stall late-stage convergence; decaying it lets early
+    iterations move fast and later ones fine-tune. Returns base_lr for a
+    single-iteration run.
+    """
+    if total <= 1:
+        return base_lr
+    progress = min(max((it - start) / (total - 1), 0.0), 1.0)
+    return min_lr + 0.5 * (base_lr - min_lr) * (1.0 + math.cos(math.pi * progress))
 
 
 def _run_rust(bin_name: str, extra_args: list[str]) -> str:
@@ -58,6 +72,8 @@ def main() -> None:
     parser.add_argument("--filters", type=int, default=64)
     parser.add_argument("--blocks", type=int, default=5)
     parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--min-lr", type=float, default=1e-4,
+                        help="Floor for the cosine learning-rate decay across iterations.")
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--threads", type=int, default=0, help="Self-play thread/process count (0 = auto).")
     parser.add_argument("--batched", action="store_true",
@@ -120,8 +136,9 @@ def main() -> None:
                                    "last_score": None, "promoted_count": promoted_count})
         window = select_window(list(shards_dir.glob("*.safetensors")), args.window)
         candidate = models_dir / f"candidate{it:04d}.onnx"
+        iter_lr = _decayed_lr(args.lr, args.min_lr, it, start_iter, args.iterations)
         n = train_candidate(window, candidate, args.filters, args.blocks,
-                            args.epochs, args.lr, args.weight_decay, warm_start=best_pt)
+                            args.epochs, iter_lr, args.weight_decay, warm_start=best_pt)
 
         write_status(status_path, {"iteration": it, "total_iterations": args.iterations,
                                    "stage": "gating", "samples": n,
@@ -138,7 +155,8 @@ def main() -> None:
             shutil.copyfile(candidate.with_suffix(".pt"), best_pt)
             promoted_count += 1
 
-        row = {"iter": it, "samples": n, "a_score": score, "promoted": promoted}
+        row = {"iter": it, "samples": n, "a_score": score, "promoted": promoted,
+               "lr": round(iter_lr, 6)}
         with metrics_path.open("a") as f:
             f.write(json.dumps(row) + "\n")
         write_status(status_path, {"iteration": it, "total_iterations": args.iterations,
