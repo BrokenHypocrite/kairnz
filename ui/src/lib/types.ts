@@ -79,6 +79,12 @@ export interface ApplyResult {
   result: GameResult | null;
 }
 
+/** The AI's chosen action plus the result of applying it. */
+export interface AiMoveResult {
+  action: Action;
+  apply: ApplyResult;
+}
+
 /** Rule configuration passed to new_game. Matches Rust RuleConfig defaults. */
 export interface RuleConfig {
   spire: SpireMode;

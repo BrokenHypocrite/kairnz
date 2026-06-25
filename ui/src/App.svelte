@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { newGame, legalActions, applyAction, undo, pieceMoves, aiMove } from './lib/api.js';
   import { defaultConfig } from './lib/types.js';
-  import type { Action, GameId, GameView, Player, RuleConfig, Sq } from './lib/types.js';
+  import type { Action, ApplyResult, GameId, GameView, Player, PieceView, RuleConfig, Sq } from './lib/types.js';
   import Board from './components/Board.svelte';
   import ConfigPanel from './components/ConfigPanel.svelte';
   import Sidebar from './components/Sidebar.svelte';
@@ -176,8 +176,13 @@
     ) {
       busy = true;
       try {
+        const preView = view;
+        const mover: Player = preView.to_move;
         const result = await aiMove(gameId, aiModel, aiSims);
-        view = result.view;
+        const action = result.action;
+        const movingPiece = 'Move' in action ? (preView.board[action.Move.from] ?? null) : null;
+        recordMove(action, result.apply, mover, movingPiece);
+        view = result.apply.view;
         legal = await legalActions(gameId);
       } catch (e) {
         error = String(e);
@@ -193,6 +198,30 @@
   // Action dispatch -- the single pathway for all game actions
   // ---------------------------------------------------------------------------
 
+  /**
+   * Records a played action into the move history (also drives the previous-move
+   * highlight). Shared by the human (dispatch) and AI (driveAi) paths.
+   */
+  function recordMove(
+    action: Action,
+    result: ApplyResult,
+    mover: Player,
+    movingPiece: PieceView | null
+  ) {
+    plyCounter += 1;
+    const notation = actionToNotation(
+      action,
+      {
+        capture: result.last_capture !== null,
+        checkEnd: result.turn_ended_on_check,
+        gameOver: result.result !== null,
+      },
+      names.piece_codes,
+      movingPiece
+    );
+    history = [...history, { ply: plyCounter, player: mover, text: notation, squares: actionSquares(action) }];
+  }
+
   async function dispatch(id: GameId, action: Action) {
     if (busy) return;
     busy = true;
@@ -204,18 +233,7 @@
       if (result.turn_ended_on_check) {
         banner = names.check_banner;
       }
-      plyCounter += 1;
-      const notation = actionToNotation(
-        action,
-        {
-          capture: result.last_capture !== null,
-          checkEnd: result.turn_ended_on_check,
-          gameOver: result.result !== null,
-        },
-        names.piece_codes,
-        movingPiece
-      );
-      history = [...history, { ply: plyCounter, player: mover, text: notation, squares: actionSquares(action) }];
+      recordMove(action, result, mover, movingPiece);
       await refreshAfterAction(result.view, id);
       await driveAi();
     } catch (e) {

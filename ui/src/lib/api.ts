@@ -4,7 +4,7 @@
  * Argument object keys must match the Rust parameter names exactly.
  */
 import { invoke } from '@tauri-apps/api/core';
-import type { Action, ApplyResult, GameId, GameView, RuleConfig, Sq } from './types.js';
+import type { Action, AiMoveResult, ApplyResult, GameId, GameView, RuleConfig, Sq } from './types.js';
 
 /** Creates a new game with the given rule configuration. */
 export async function newGame(config: RuleConfig): Promise<[GameId, GameView]> {
@@ -39,7 +39,7 @@ export async function pieceMoves(id: GameId, from: Sq): Promise<Sq[]> {
   return invoke('piece_moves', { id, from });
 }
 
-/** Asks the AI to pick and apply a move, returning the updated state. */
-export function aiMove(id: GameId, model: string, simulations: number): Promise<ApplyResult> {
+/** Asks the AI to pick and apply a move, returning the chosen action and updated state. */
+export function aiMove(id: GameId, model: string, simulations: number): Promise<AiMoveResult> {
   return invoke('ai_move', { id, model, simulations });
 }

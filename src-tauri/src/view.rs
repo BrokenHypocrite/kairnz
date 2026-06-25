@@ -1,3 +1,4 @@
+use kairnz_core::actions::Action;
 use kairnz_core::apply::CapturedInfo;
 use kairnz_core::game::Game;
 use kairnz_core::outcome::GameResult;
@@ -46,6 +47,14 @@ pub struct ApplyResult {
     pub last_capture: Option<CapturedInfo>,
     /// Terminal result, or `None` while the game is still in progress.
     pub result: Option<GameResult>,
+}
+
+/// The AI's chosen action plus the result of applying it (so the UI can record
+/// the move in its history exactly as it does for a human move).
+#[derive(Serialize)]
+pub struct AiMoveResult {
+    pub action: Action,
+    pub apply: ApplyResult,
 }
 
 /// Builds a [`GameView`] from the current state of `game`.

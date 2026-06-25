@@ -4,7 +4,7 @@ use kairnz_core::square::Sq;
 use tauri::State;
 
 use crate::state::{GameId, GameStore};
-use crate::view::{ApplyResult, GameView};
+use crate::view::{AiMoveResult, ApplyResult, GameView};
 
 /// Creates a new game with the given rule configuration.
 ///
@@ -52,7 +52,8 @@ pub fn undo(id: GameId, store: State<GameStore>) -> Result<GameView, String> {
     store.undo(id)
 }
 
-/// Asks the AI to choose and apply a move, returning the updated state.
+/// Asks the AI to choose and apply a move, returning the chosen action and
+/// updated state (so the UI can record the move in its history).
 ///
 /// `model` is the filesystem path to the ONNX model file; `simulations` controls
 /// the MCTS search budget. The AI engine is lazily loaded and cached across calls.
@@ -63,11 +64,12 @@ pub fn ai_move(
     simulations: u32,
     store: State<GameStore>,
     ai: State<crate::ai::AiEngine>,
-) -> Result<ApplyResult, String> {
+) -> Result<AiMoveResult, String> {
     // Clone the game (brief lock), search lock-free, then apply.
     let game = store.clone_game(id)?;
     let action = ai.choose(&game, std::path::Path::new(&model), simulations)?;
-    store.apply_action(id, action)
+    let apply = store.apply_action(id, action)?;
+    Ok(AiMoveResult { action, apply })
 }
 
 /// Returns the geometric move targets for the piece at `from`, ignoring AP/turn rules.
