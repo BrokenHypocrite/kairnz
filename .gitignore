@@ -9,7 +9,10 @@ train/.venv/
 __pycache__/
 *.pyc
 
-# AlphaZero loop run artifacts
-loop-run/
+# AlphaZero training run artifacts (loop-run, real-run, docker-test-run, remote-run, ...)
+*-run/
 *.safetensors
 models/
+
+# Local scratch / screenshots
+Screenshot*.png
