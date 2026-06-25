@@ -60,6 +60,24 @@ tasks:
     cmds:
       - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; uv run python scripts/loop.py --work "../{{.WORK}}" --iterations {{.ITERS}} --selfplay-games {{.GAMES}} --selfplay-sims {{.SIMS}} --gate-games {{.GATE_GAMES}} --epochs {{.EPOCHS}} --filters {{.FILTERS}} --blocks {{.BLOCKS}} --threads {{.THREADS}}'
 
+  # Resume a prior loop run on a remote/headless box. Mirrors `loop` but adds --resume
+  # and also spins up the web dashboard in the background. Override vars the same way.
+  #   task remote WORK=remote-run ITERS=20 GAMES=64
+  remote:
+    vars:
+      WORK: '{{.WORK | default "remote-run"}}'
+      ITERS: '{{.ITERS | default 10}}'
+      GAMES: '{{.GAMES | default 64}}'
+      SIMS: '{{.SIMS | default 200}}'
+      GATE_GAMES: '{{.GATE_GAMES | default 40}}'
+      EPOCHS: '{{.EPOCHS | default 10}}'
+      FILTERS: '{{.FILTERS | default 64}}'
+      BLOCKS: '{{.BLOCKS | default 5}}'
+      THREADS: '{{.THREADS | default 0}}'
+    cmds:
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; Start-Process -NoNewWindow uv -ArgumentList "run","python","-m","kairnz_train.dashboard","--work","../{{.WORK}}","--host","127.0.0.1","--port","8080" -RedirectStandardOutput "../{{.WORK}}/dashboard.log" -RedirectStandardError "../{{.WORK}}/dashboard.log"'
+      - powershell -NoProfile -Command '$env:PATH = "{{.TORCH_LIB}};$env:PATH"; cd train; uv run python scripts/loop.py --work "../{{.WORK}}" --resume --iterations {{.ITERS}} --selfplay-games {{.GAMES}} --selfplay-sims {{.SIMS}} --gate-games {{.GATE_GAMES}} --epochs {{.EPOCHS}} --filters {{.FILTERS}} --blocks {{.BLOCKS}} --threads {{.THREADS}}'
+
   # Open the live training status window (point it at the same WORK dir as the loop).
   status:
     vars:
