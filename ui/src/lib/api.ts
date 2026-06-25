@@ -38,3 +38,8 @@ export async function undo(id: GameId): Promise<GameView> {
 export async function pieceMoves(id: GameId, from: Sq): Promise<Sq[]> {
   return invoke('piece_moves', { id, from });
 }
+
+/** Asks the AI to pick and apply a move, returning the updated state. */
+export function aiMove(id: GameId, model: string, simulations: number): Promise<ApplyResult> {
+  return invoke('ai_move', { id, model, simulations });
+}

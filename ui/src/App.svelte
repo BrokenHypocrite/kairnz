@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { newGame, legalActions, applyAction, undo, pieceMoves } from './lib/api.js';
+  import { newGame, legalActions, applyAction, undo, pieceMoves, aiMove } from './lib/api.js';
   import { defaultConfig } from './lib/types.js';
   import type { Action, GameId, GameView, Player, RuleConfig, Sq } from './lib/types.js';
   import Board from './components/Board.svelte';
@@ -22,6 +22,15 @@
   let config = $state<RuleConfig>({ ...defaultConfig });
   let error = $state<string | null>(null);
   let busy = $state(false);
+
+  // ---------------------------------------------------------------------------
+  // AI opponent state
+  // ---------------------------------------------------------------------------
+
+  let aiEnabled = $state(false);
+  let aiSide: Player = $state('P2');
+  let aiSims = $state(200);
+  let aiModel = $state('models/best.onnx');
 
   /** Middle-click preview: the inspected square and its geometric move targets. */
   let inspect = $state<{ sq: number; targets: number[] } | null>(null);
@@ -151,6 +160,36 @@
   }
 
   // ---------------------------------------------------------------------------
+  // AI move driver -- loops while it is the AI's turn (handles multi-AP turns)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Drives AI moves until the turn passes to the human or the game ends.
+   * Called fire-and-forget after each human move and at new-game when the AI
+   * plays the starting side. The `busy` flag blocks human input during AI turns.
+   */
+  async function driveAi() {
+    let guard = 0;
+    while (
+      aiEnabled && gameId !== null && view !== null &&
+      view.result === null && view.to_move === aiSide
+    ) {
+      busy = true;
+      try {
+        const result = await aiMove(gameId, aiModel, aiSims);
+        view = result.view;
+        legal = await legalActions(gameId);
+      } catch (e) {
+        error = String(e);
+        break;
+      } finally {
+        busy = false;
+      }
+      if (++guard > 1000) break;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Action dispatch -- the single pathway for all game actions
   // ---------------------------------------------------------------------------
 
@@ -178,6 +217,7 @@
       );
       history = [...history, { ply: plyCounter, player: mover, text: notation, squares: actionSquares(action) }];
       await refreshAfterAction(result.view, id);
+      void driveAi();
     } catch (e) {
       error = String(e);
     } finally {
@@ -314,6 +354,7 @@
       gameId = id;
       view = initialView;
       legal = await legalActions(id);
+      void driveAi();
     } catch (e) {
       error = String(e);
     } finally {
