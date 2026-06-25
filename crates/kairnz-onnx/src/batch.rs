@@ -7,7 +7,7 @@ use crate::evaluator::OnnxEvaluator;
 
 /// A batched policy/value evaluator. `planes[i]` is a canonical 14*81 plane
 /// vector; `reps[i]` its repetition count. Returns one (policy, value) per row.
-pub trait BatchEvaluator: Sync {
+pub trait BatchEvaluator: Send + Sync {
     /// Evaluates a batch of pre-encoded positions, returning one (policy, value)
     /// pair per input row. Policy length is `POLICY_SIZE` (6723).
     fn evaluate_batch(
