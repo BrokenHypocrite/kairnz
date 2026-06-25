@@ -5,6 +5,7 @@ use std::path::Path;
 use kairnz_core::position::Position;
 use kairnz_encode::{encode_planes, CH_REPETITION, NUM_PLANES, POLICY_SIZE, REPETITION_NORM};
 use ndarray::Array4;
+use ort::execution_providers::cuda::CuDNNConvAlgorithmSearch;
 use ort::execution_providers::{CUDAExecutionProvider, ExecutionProvider};
 use ort::session::Session;
 use ort::value::Tensor;
@@ -39,11 +40,20 @@ impl OnnxEvaluator {
         let mut builder = Session::builder()?
             .with_intra_threads(INTRA_OP_THREADS)?
             .with_inter_threads(INTER_OP_THREADS)?;
-        let cuda = CUDAExecutionProvider::default();
-        let backend = if cuda.register(&mut builder).is_ok() {
-            Backend::Cuda
-        } else {
-            Backend::Cpu
+        // cuDNN's convolution-algorithm search defaults to EXHAUSTIVE, which
+        // benchmarks (and on cuDNN 9, runtime-compiles) every algorithm for
+        // every conv on the first inference. On a Hopper GPU with no native
+        // sm_90 cubin in the bundled provider, that first call stalls for
+        // minutes. HEURISTIC selects a good algorithm without the benchmark
+        // sweep; for our small net at batch 1 the steady-state cost is the same.
+        let cuda = CUDAExecutionProvider::default()
+            .with_conv_algorithm_search(CuDNNConvAlgorithmSearch::Heuristic);
+        let backend = match cuda.register(&mut builder) {
+            Ok(()) => Backend::Cuda,
+            Err(error) => {
+                eprintln!("CUDA execution provider unavailable, falling back to CPU: {error:?}");
+                Backend::Cpu
+            }
         };
         let session = builder.commit_from_file(path)?;
         Ok(OnnxEvaluator { session, backend })
