@@ -22,6 +22,10 @@ const DEFAULT_C_PUCT: f64 = 1.5;
 const DEFAULT_DIRICHLET_ALPHA: f64 = 0.3;
 /// Default root-noise weight. Zero disables noise, making search deterministic.
 const DEFAULT_DIRICHLET_EPSILON: f64 = 0.0;
+/// Default number of leaves collected and evaluated per batched search step.
+const DEFAULT_LEAVES_PER_STEP: usize = 8;
+/// Default virtual-loss weight applied to in-flight nodes during batched search.
+const DEFAULT_VIRTUAL_LOSS: f32 = 1.0;
 
 /// Terminal value of a win from the winning side's perspective.
 const WIN_VALUE: f64 = 1.0;
@@ -41,6 +45,10 @@ pub struct AzMctsConfig {
     pub dirichlet_alpha: f64,
     /// Root-noise mixing weight in `[0, 1]`; `0.0` disables noise.
     pub dirichlet_epsilon: f64,
+    /// Leaves collected and evaluated per batched search step (`BatchedAzMcts`).
+    pub leaves_per_step: usize,
+    /// Virtual-loss weight applied to in-flight nodes during batched selection.
+    pub virtual_loss: f32,
 }
 
 impl Default for AzMctsConfig {
@@ -50,6 +58,8 @@ impl Default for AzMctsConfig {
             c_puct: DEFAULT_C_PUCT,
             dirichlet_alpha: DEFAULT_DIRICHLET_ALPHA,
             dirichlet_epsilon: DEFAULT_DIRICHLET_EPSILON,
+            leaves_per_step: DEFAULT_LEAVES_PER_STEP,
+            virtual_loss: DEFAULT_VIRTUAL_LOSS,
         }
     }
 }

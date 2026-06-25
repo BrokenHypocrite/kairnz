@@ -60,6 +60,7 @@ impl SelfPlayConfig {
             c_puct: self.c_puct,
             dirichlet_alpha: self.dirichlet_alpha,
             dirichlet_epsilon: self.dirichlet_epsilon,
+            ..kairnz_onnx::AzMctsConfig::default()
         }
     }
 }

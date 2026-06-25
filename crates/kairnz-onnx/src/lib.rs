@@ -8,11 +8,13 @@ pub mod evaluator;
 pub mod policy;
 pub mod mcts;
 pub mod batch;
+pub mod batched_mcts;
 
 pub use evaluator::OnnxEvaluator;
 pub use policy::OnnxPolicy;
 pub use mcts::{AzMctsConfig, AzMctsPolicy};
 pub use batch::{BatchEvaluator, DEFAULT_MAX_BATCH, DirectBatchEvaluator, InferenceServer};
+pub use batched_mcts::BatchedAzMcts;
 
 /// The execution backend a session is running on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
