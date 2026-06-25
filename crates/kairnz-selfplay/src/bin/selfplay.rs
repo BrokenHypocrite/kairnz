@@ -1,13 +1,18 @@
 //! Self-play CLI: plays games with the neural MCTS and writes a training shard.
+//!
+//! In coordinator mode (default), `--threads N` spawns N worker processes, each
+//! running this same binary with `--worker`, then merges their fragment shards.
+//! In worker mode (`--worker`), one single-threaded self-play run is performed
+//! and the shard is written directly to `--out`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
 use kairnz_core::config::RuleConfig;
-use kairnz_onnx::{OnnxEvaluator, DEFAULT_MAX_BATCH};
+use kairnz_onnx::DEFAULT_MAX_BATCH;
 use kairnz_selfplay::parallel::parallel_self_play;
-use kairnz_selfplay::shard::write_shard;
+use kairnz_selfplay::shard::{read_shard, write_shard};
 use kairnz_selfplay::SelfPlayConfig;
 
 /// Command-line arguments for a self-play run.
@@ -29,7 +34,8 @@ struct Args {
     /// Base RNG seed.
     #[arg(long, default_value_t = 0)]
     seed: u64,
-    /// Worker threads (0 = auto-detect available parallelism).
+    /// Number of worker processes to spawn (coordinator) or ignored in worker mode.
+    /// 0 = auto-detect available parallelism.
     #[arg(long, default_value_t = 0)]
     threads: usize,
     /// Use a single shared inference server (batched GPU path).
@@ -45,65 +51,178 @@ struct Args {
     /// Leaves collected and evaluated per batched MCTS step (only used with --batched).
     #[arg(long, default_value_t = 8)]
     leaves_per_step: usize,
+    /// Temperature cutoff: plies of proportional sampling before argmax.
+    #[arg(long, default_value_t = 20)]
+    temperature_cutoff: u32,
+    /// Run as a single-threaded worker process; writes its fragment shard to --out.
+    /// This flag is set by the coordinator -- callers should not set it manually.
+    #[arg(long, default_value_t = false)]
+    worker: bool,
 }
 
 fn main() -> ExitCode {
     let args = Args::parse();
+
+    if args.worker {
+        run_worker(args)
+    } else {
+        run_coordinator(args)
+    }
+}
+
+/// Worker path: single-threaded self-play writing one fragment shard to `--out`.
+fn run_worker(args: Args) -> ExitCode {
     let config = SelfPlayConfig {
         simulations: args.simulations,
-        games: args.games,
+        temperature_cutoff: args.temperature_cutoff,
         ..SelfPlayConfig::default()
     };
-
-    let threads = if args.threads == 0 {
-        std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
-    } else {
-        args.threads
-    };
-
-    // Load once just to report the execution backend.
-    match OnnxEvaluator::from_path(&args.model) {
-        Ok(evaluator) => {
-            println!(
-                "self-play backend: {:?}, threads: {threads}, mode: {}",
-                evaluator.backend(),
-                if args.batched { "batched" } else { "per-thread" }
-            );
-        }
-        Err(error) => {
-            eprintln!("failed to load model: {error}");
-            return ExitCode::FAILURE;
-        }
-    }
 
     let samples = match parallel_self_play(
         &args.model,
         args.games,
-        threads,
+        1, // workers are always single-threaded
         config.mcts_config(),
         RuleConfig::default(),
         config.temperature_cutoff,
         args.seed,
-        args.batched,
+        false, // batched mode is not used inside workers
         args.max_batch,
         args.leaves_per_step,
     ) {
         Ok(s) => s,
-        Err(error) => {
-            eprintln!("self-play failed: {error}");
+        Err(e) => {
+            eprintln!("worker self-play failed: {e}");
             return ExitCode::FAILURE;
         }
     };
-    println!("played {} games on {threads} threads -> {} samples", args.games, samples.len());
 
     match write_shard(&samples, &args.out) {
-        Ok(()) => {
-            println!("wrote {} samples to {}", samples.len(), args.out.display());
-            ExitCode::SUCCESS
-        }
-        Err(error) => {
-            eprintln!("failed to write shard: {error}");
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("worker failed to write shard: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// Coordinator path: spawn N worker processes, wait for all concurrently, then merge.
+fn run_coordinator(args: Args) -> ExitCode {
+    let n = if args.threads == 0 {
+        std::thread::available_parallelism().map(|p| p.get()).unwrap_or(1)
+    } else {
+        args.threads
+    }
+    .max(1);
+
+    println!("self-play coordinator: {n} workers, {} games total", args.games);
+
+    let exe = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("failed to resolve current executable: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let model_str = args.model.to_string_lossy().into_owned();
+    let base_games = args.games as usize / n;
+    let remainder = args.games as usize % n;
+
+    // Spawn all workers before waiting for any (true concurrency).
+    let mut children: Vec<(std::process::Child, PathBuf)> = Vec::with_capacity(n);
+    for k in 0..n {
+        let games_k = base_games + if k < remainder { 1 } else { 0 };
+        if games_k == 0 {
+            continue;
+        }
+
+        let frag = args.out.with_extension(format!("part{k}.safetensors"));
+        let frag_str = frag.to_string_lossy().into_owned();
+
+        let child = std::process::Command::new(&exe)
+            .arg("--worker")
+            .args(["--model", &model_str])
+            .args(["--out", &frag_str])
+            .args(["--games", &games_k.to_string()])
+            .args(["--simulations", &args.simulations.to_string()])
+            .args(["--seed", &(args.seed + k as u64).to_string()])
+            .args(["--threads", "1"])
+            .args(["--max-batch", &args.max_batch.to_string()])
+            .args(["--leaves-per-step", &args.leaves_per_step.to_string()])
+            .args(["--temperature-cutoff", &args.temperature_cutoff.to_string()])
+            .spawn();
+
+        match child {
+            Ok(c) => children.push((c, frag)),
+            Err(e) => {
+                eprintln!("failed to spawn worker {k}: {e}");
+                // Clean up any fragments already queued, then quit.
+                cleanup_frags(&children.iter().map(|(_, p)| p.clone()).collect::<Vec<_>>());
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // Wait for all workers; collect any failures.
+    let mut failed = Vec::new();
+    let frags: Vec<PathBuf> = children.iter().map(|(_, p)| p.clone()).collect();
+    for (k, (mut child, frag)) in children.into_iter().enumerate() {
+        match child.wait() {
+            Ok(status) if status.success() => {}
+            Ok(status) => {
+                failed.push(format!("worker {k} ({}) exited with {status}", frag.display()));
+            }
+            Err(e) => {
+                failed.push(format!("worker {k} wait error: {e}"));
+            }
+        }
+    }
+
+    if !failed.is_empty() {
+        for msg in &failed {
+            eprintln!("{msg}");
+        }
+        cleanup_frags(&frags);
+        return ExitCode::FAILURE;
+    }
+
+    // Merge fragment shards into the final output file.
+    let mut all_samples = Vec::new();
+    for frag in &frags {
+        match read_shard(frag) {
+            Ok(samples) => all_samples.extend(samples),
+            Err(e) => {
+                eprintln!("failed to read fragment {}: {e}", frag.display());
+                cleanup_frags(&frags);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    match write_shard(&all_samples, &args.out) {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("failed to write merged shard: {e}");
+            cleanup_frags(&frags);
+            return ExitCode::FAILURE;
+        }
+    }
+
+    // Best-effort cleanup of fragment files.
+    cleanup_frags(&frags);
+
+    println!(
+        "self-play: {n} workers, {} samples -> {}",
+        all_samples.len(),
+        args.out.display()
+    );
+    ExitCode::SUCCESS
+}
+
+/// Removes fragment shard files on a best-effort basis (ignores errors).
+fn cleanup_frags(frags: &[PathBuf]) {
+    for frag in frags {
+        let _ = std::fs::remove_file(frag);
     }
 }

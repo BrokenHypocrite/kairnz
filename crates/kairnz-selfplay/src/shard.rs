@@ -1,4 +1,4 @@
-//! Writes self-play samples to a `.safetensors` shard.
+//! Writes and reads self-play samples as `.safetensors` shards.
 
 use std::path::Path;
 
@@ -10,18 +10,26 @@ use crate::sample::Sample;
 
 /// Number of board cells per plane.
 const BOARD_CELLS: usize = 81;
+/// Number of f32 values in one sample's planes buffer.
+const PLANES_STRIDE: usize = NUM_PLANES * BOARD_CELLS;
 
-/// Errors writing a shard.
+/// Errors reading or writing a shard.
 #[derive(Debug)]
 pub enum ShardError {
-    /// A safetensors serialization error.
+    /// A safetensors serialization/deserialization error.
     SafeTensors(SafeTensorError),
+    /// An I/O error reading the shard file.
+    Io(std::io::Error),
+    /// The shard's tensor shapes are inconsistent or unexpected.
+    Shape(String),
 }
 
 impl std::fmt::Display for ShardError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ShardError::SafeTensors(e) => write!(f, "safetensors error: {e}"),
+            ShardError::Io(e) => write!(f, "I/O error reading shard: {e}"),
+            ShardError::Shape(msg) => write!(f, "shard shape error: {msg}"),
         }
     }
 }
@@ -31,6 +39,12 @@ impl std::error::Error for ShardError {}
 impl From<SafeTensorError> for ShardError {
     fn from(e: SafeTensorError) -> Self {
         ShardError::SafeTensors(e)
+    }
+}
+
+impl From<std::io::Error> for ShardError {
+    fn from(e: std::io::Error) -> Self {
+        ShardError::Io(e)
     }
 }
 
@@ -73,6 +87,85 @@ pub fn write_shard(samples: &[Sample], path: &Path) -> Result<(), ShardError> {
         path,
     )?;
     Ok(())
+}
+
+/// Loads a shard written by [`write_shard`] back into samples.
+///
+/// Mirrors `write_shard`'s layout exactly: `planes [N, 14, 9, 9] f32`,
+/// `policy [N, 6723] f32`, `value [N] f32`, `legal_mask [N, 6723] u8`.
+/// Bytes are decoded with `f32::from_le_bytes` over `chunks_exact(4)` rather
+/// than `bytemuck::cast_slice`, which panics on misaligned buffers.
+pub fn read_shard(path: &Path) -> Result<Vec<Sample>, ShardError> {
+    let bytes = std::fs::read(path)?;
+    let st = safetensors::SafeTensors::deserialize(&bytes)?;
+
+    let planes_t = st.tensor("planes")?;
+    let policy_t = st.tensor("policy")?;
+    let value_t = st.tensor("value")?;
+    let mask_t = st.tensor("legal_mask")?;
+
+    // Derive N from the value tensor shape ([N]).
+    let n = match value_t.shape() {
+        [n] => *n,
+        shape => {
+            return Err(ShardError::Shape(format!(
+                "expected value shape [N], got {shape:?}"
+            )))
+        }
+    };
+
+    // Validate the remaining shapes match write_shard's layout.
+    let expected_planes = [n, NUM_PLANES, 9, 9];
+    if planes_t.shape() != expected_planes {
+        return Err(ShardError::Shape(format!(
+            "expected planes shape {expected_planes:?}, got {:?}",
+            planes_t.shape()
+        )));
+    }
+    let expected_policy = [n, POLICY_SIZE];
+    if policy_t.shape() != expected_policy {
+        return Err(ShardError::Shape(format!(
+            "expected policy shape {expected_policy:?}, got {:?}",
+            policy_t.shape()
+        )));
+    }
+    if mask_t.shape() != expected_policy {
+        return Err(ShardError::Shape(format!(
+            "expected legal_mask shape {expected_policy:?}, got {:?}",
+            mask_t.shape()
+        )));
+    }
+
+    // Decode raw little-endian bytes into f32 slices.
+    let planes_f32: Vec<f32> = planes_t
+        .data()
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect();
+    let policy_f32: Vec<f32> = policy_t
+        .data()
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect();
+    let value_f32: Vec<f32> = value_t
+        .data()
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect();
+    // legal_mask is u8 -- bytes are already the values.
+    let mask_u8: &[u8] = mask_t.data();
+
+    // Reconstruct one Sample per row.
+    let mut samples = Vec::with_capacity(n);
+    for i in 0..n {
+        samples.push(Sample {
+            planes: planes_f32[i * PLANES_STRIDE..(i + 1) * PLANES_STRIDE].to_vec(),
+            policy: policy_f32[i * POLICY_SIZE..(i + 1) * POLICY_SIZE].to_vec(),
+            value: value_f32[i],
+            legal_mask: mask_u8[i * POLICY_SIZE..(i + 1) * POLICY_SIZE].to_vec(),
+        });
+    }
+    Ok(samples)
 }
 
 #[cfg(test)]
@@ -124,5 +217,37 @@ mod tests {
         assert_eq!(policy.dtype(), Dtype::F32);
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn read_shard_roundtrips_write_shard() {
+        // Build distinct samples so byte-equality catches any field mix-up.
+        let mut s0 = tiny_sample(0.5);
+        s0.planes[0] = 1.0;
+        s0.policy[1] = 0.75;
+        s0.legal_mask[2] = 0;
+
+        let mut s1 = tiny_sample(-0.5);
+        s1.planes[NUM_PLANES * BOARD_CELLS - 1] = 2.0;
+        s1.policy[POLICY_SIZE - 1] = 0.25;
+
+        let originals = vec![s0, s1];
+
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!(
+            "kairnz_selfplay_roundtrip_{}.safetensors",
+            std::process::id()
+        ));
+        write_shard(&originals, &path).expect("write_shard succeeds");
+        let recovered = read_shard(&path).expect("read_shard succeeds");
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(recovered.len(), originals.len(), "same number of samples");
+        for (i, (got, want)) in recovered.iter().zip(originals.iter()).enumerate() {
+            assert_eq!(got.planes, want.planes, "sample {i} planes mismatch");
+            assert_eq!(got.policy, want.policy, "sample {i} policy mismatch");
+            assert_eq!(got.value, want.value, "sample {i} value mismatch");
+            assert_eq!(got.legal_mask, want.legal_mask, "sample {i} legal_mask mismatch");
+        }
     }
 }
