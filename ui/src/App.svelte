@@ -217,7 +217,7 @@
       );
       history = [...history, { ply: plyCounter, player: mover, text: notation, squares: actionSquares(action) }];
       await refreshAfterAction(result.view, id);
-      void driveAi();
+      await driveAi();
     } catch (e) {
       error = String(e);
     } finally {
@@ -354,7 +354,7 @@
       gameId = id;
       view = initialView;
       legal = await legalActions(id);
-      void driveAi();
+      await driveAi();
     } catch (e) {
       error = String(e);
     } finally {
