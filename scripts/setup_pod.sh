@@ -1,46 +1,64 @@
 #!/usr/bin/env bash
-# One-time setup for a rented GPU pod (Ubuntu with CUDA + cuDNN, e.g. a RunPod or
-# Vast.ai PyTorch template). Run from the repo root after cloning. Installs the
-# Rust toolchain + uv, builds the release self-play/gate binaries, and syncs the
-# Python training env. Takes roughly 15-20 minutes the first time; on a
-# persistent volume it only needs to run once.
+# One-time (and restart-safe) setup for a rented GPU pod with a /workspace volume.
+#
+# Installs the Rust toolchain + uv ONTO THE VOLUME so they survive pod restarts
+# (RunPod resets the container filesystem on stop/start; only /workspace persists).
+# Builds the release self-play/gate binaries and syncs the Python training env.
+# Writes /workspace/env.sh, which every shell should source before running anything.
 #
 # Usage:
-#   git clone <your-repo-url> kairnz && cd kairnz
+#   git clone <repo> /workspace/kairnz && cd /workspace/kairnz
 #   bash scripts/setup_pod.sh
+#   source /workspace/env.sh
 #   scripts/run_remote.sh remote-run --filters 128 --blocks 10 \
-#       --selfplay-games 256 --selfplay-sims 400 --max-batch 256 \
-#       --leaves-per-step 8 --threads "$(nproc)"
+#       --selfplay-games 256 --selfplay-sims 400 --epochs 10 --threads "$(nproc)"
+#
+# After a pod RESTART, just re-run this script (fast: toolchains + build are cached
+# on the volume) OR simply `source /workspace/env.sh` if the base image kept the
+# build tools.
 set -euo pipefail
 
-# System build dependencies. libssl-dev is required so the Rust openssl-sys
-# dependency builds; pkg-config + build-essential cover the rest.
+REPO="/workspace/kairnz"
+export CARGO_HOME="/workspace/.cargo"
+export RUSTUP_HOME="/workspace/.rustup"
+UV_DIR="/workspace/.uv-bin"
+
+# System build deps (live in the container, so re-run on each setup; idempotent).
 apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates build-essential pkg-config git libssl-dev
 
-# Rust toolchain (skip if already present).
-if ! command -v cargo >/dev/null 2>&1; then
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# Rust toolchain on the volume (skip if already there).
+if [ ! -x "$CARGO_HOME/bin/cargo" ]; then
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
 fi
+
+# uv on the volume (skip if already there).
+if [ ! -x "$UV_DIR/uv" ]; then
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$UV_DIR" sh
+fi
+
+# A sourceable env file: toolchains from the volume + cuDNN on LD_LIBRARY_PATH so the
+# Rust ONNX Runtime CUDA provider loads (Linux uses LD_LIBRARY_PATH, not PATH).
+cat > /workspace/env.sh <<'ENVEOF'
+export CARGO_HOME="/workspace/.cargo"
+export RUSTUP_HOME="/workspace/.rustup"
+export PATH="/workspace/.cargo/bin:/workspace/.uv-bin:$PATH"
+export LD_LIBRARY_PATH="$(echo /workspace/kairnz/train/.venv/lib/python*/site-packages/nvidia/*/lib /workspace/kairnz/train/.venv/lib/python*/site-packages/torch/lib | tr ' ' ':'):${LD_LIBRARY_PATH:-}"
+ENVEOF
+
 # shellcheck disable=SC1091
-[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
-export PATH="$HOME/.cargo/bin:$PATH"
+source /workspace/env.sh
 
-# uv (Python package/venv manager).
-if ! command -v uv >/dev/null 2>&1; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-fi
-export PATH="$HOME/.local/bin:$PATH"
+# Build the release binaries (incremental; target/ lives on the volume).
+( cd "$REPO" && cargo build --release -p kairnz-selfplay )
 
-# Build the release Rust binaries (self-play + gate).
-cargo build --release -p kairnz-selfplay
-
-# Sync the Python training environment (PyTorch + deps).
-( cd train && uv sync )
+# Sync the Python training environment (creates train/.venv on the volume).
+( cd "$REPO/train" && uv sync )
 
 echo ""
-echo "Setup complete. GPU inference uses the pod's system cuDNN automatically."
-echo "Launch training, e.g.:"
-echo "  scripts/run_remote.sh remote-run --filters 128 --blocks 10 \\"
-echo "      --selfplay-games 256 --selfplay-sims 400 --max-batch 256 \\"
-echo "      --leaves-per-step 8 --threads \"\$(nproc)\""
+echo "Setup complete. Toolchains, build, and venv are on /workspace (survive restarts)."
+echo "In any shell, first run:  source /workspace/env.sh"
+echo "Then launch, e.g.:"
+echo "  cd /workspace/kairnz && scripts/run_remote.sh remote-run \\"
+echo "      --filters 128 --blocks 10 --selfplay-games 256 --selfplay-sims 400 \\"
+echo "      --epochs 10 --threads \"\$(nproc)\""
