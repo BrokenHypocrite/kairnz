@@ -1800,6 +1800,7 @@ dependencies = [
  "rand_pcg",
  "safetensors",
  "serde",
+ "serde_json",
  "serde_yaml",
 ]
 
