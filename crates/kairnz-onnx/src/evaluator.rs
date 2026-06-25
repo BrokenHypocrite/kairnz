@@ -28,7 +28,17 @@ impl OnnxEvaluator {
     /// falling back to CPU. The chosen backend is recorded and reported by
     /// [`OnnxEvaluator::backend`]. CUDA failures are non-fatal.
     pub fn from_path(path: &Path) -> ort::Result<OnnxEvaluator> {
-        let mut builder = Session::builder()?;
+        // ORT otherwise sizes each session's CPU thread pool to the visible core
+        // count (the host's, e.g. 128 inside a container). Running one session
+        // per self-play thread then spawns thousands of threads that thrash a
+        // small vCPU allocation (~1 core of useful work, GPU starved). The GPU
+        // does the compute and we parallelize across game threads, so a single
+        // intra/inter-op thread per session is correct.
+        const INTRA_OP_THREADS: usize = 1;
+        const INTER_OP_THREADS: usize = 1;
+        let mut builder = Session::builder()?
+            .with_intra_threads(INTRA_OP_THREADS)?
+            .with_inter_threads(INTER_OP_THREADS)?;
         let cuda = CUDAExecutionProvider::default();
         let backend = if cuda.register(&mut builder).is_ok() {
             Backend::Cuda
