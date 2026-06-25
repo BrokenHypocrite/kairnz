@@ -5,7 +5,7 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use kairnz_core::config::RuleConfig;
-use kairnz_onnx::OnnxEvaluator;
+use kairnz_onnx::{OnnxEvaluator, DEFAULT_MAX_BATCH};
 use kairnz_selfplay::parallel::parallel_self_play;
 use kairnz_selfplay::shard::write_shard;
 use kairnz_selfplay::SelfPlayConfig;
@@ -32,6 +32,12 @@ struct Args {
     /// Worker threads (0 = auto-detect available parallelism).
     #[arg(long, default_value_t = 0)]
     threads: usize,
+    /// Maximum positions per GPU batch sent to the inference server.
+    #[arg(long, default_value_t = DEFAULT_MAX_BATCH)]
+    max_batch: usize,
+    /// Leaves collected and evaluated per batched MCTS step.
+    #[arg(long, default_value_t = 8)]
+    leaves_per_step: usize,
 }
 
 fn main() -> ExitCode {
@@ -67,6 +73,8 @@ fn main() -> ExitCode {
         RuleConfig::default(),
         config.temperature_cutoff,
         args.seed,
+        args.max_batch,
+        args.leaves_per_step,
     ) {
         Ok(s) => s,
         Err(error) => {

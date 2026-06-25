@@ -12,7 +12,7 @@ pub mod batched_mcts;
 
 pub use evaluator::OnnxEvaluator;
 pub use policy::OnnxPolicy;
-pub use mcts::{AzMctsConfig, AzMctsPolicy};
+pub use mcts::{AzMcts, AzMctsConfig, AzMctsPolicy};
 pub use batch::{BatchEvaluator, DEFAULT_MAX_BATCH, DirectBatchEvaluator, InferenceServer};
 pub use batched_mcts::BatchedAzMcts;
 
@@ -23,4 +23,35 @@ pub enum Backend {
     Cuda,
     /// CPU execution provider (the default and fallback).
     Cpu,
+}
+
+/// A common interface for MCTS engines used during self-play.
+///
+/// Implemented by both [`AzMcts`] (single-threaded, infallible search) and
+/// [`BatchedAzMcts`] (batched, shared-server search). Callers that are generic
+/// over `impl Searcher` avoid duplicating game-loop logic.
+pub trait Searcher {
+    /// Runs a search from `game` and returns each root child's
+    /// `(action, visit_count)`. Empty for terminal positions.
+    fn search(&mut self, game: &kairnz_core::game::Game)
+        -> ort::Result<Vec<(kairnz_core::actions::Action, u32)>>;
+}
+
+impl Searcher for AzMcts {
+    /// Wraps the infallible [`AzMcts::search`] in `Ok(...)`.
+    fn search(
+        &mut self,
+        game: &kairnz_core::game::Game,
+    ) -> ort::Result<Vec<(kairnz_core::actions::Action, u32)>> {
+        Ok(AzMcts::search(self, game))
+    }
+}
+
+impl<'a> Searcher for BatchedAzMcts<'a> {
+    fn search(
+        &mut self,
+        game: &kairnz_core::game::Game,
+    ) -> ort::Result<Vec<(kairnz_core::actions::Action, u32)>> {
+        BatchedAzMcts::search(self, game)
+    }
 }

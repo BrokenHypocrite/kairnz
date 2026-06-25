@@ -5,7 +5,7 @@ use kairnz_core::config::RuleConfig;
 use kairnz_core::game::Game;
 use kairnz_core::piece::Player;
 use kairnz_encode::{encode_planes, legal_mask};
-use kairnz_onnx::mcts::AzMcts;
+use kairnz_onnx::Searcher;
 use rand::Rng;
 use rand_pcg::Pcg64;
 
@@ -26,18 +26,21 @@ struct PendingSample {
 /// Moves are sampled proportional to visit counts for the first
 /// `temperature_cutoff` plies (exploration), then chosen greedily (argmax). The
 /// recorded policy target is always the raw visit distribution.
+///
+/// Returns an error if the underlying search engine fails (e.g. ONNX inference
+/// error from [`kairnz_onnx::BatchedAzMcts`]).
 pub fn play_game(
-    mcts: &mut AzMcts,
+    mcts: &mut impl Searcher,
     config: RuleConfig,
     temperature_cutoff: u32,
     rng: &mut Pcg64,
-) -> Vec<Sample> {
+) -> ort::Result<Vec<Sample>> {
     let mut game = Game::new_standard(config);
     let mut pending: Vec<PendingSample> = Vec::new();
     let mut ply = 0u32;
 
     while game.terminal_result().is_none() {
-        let visits = mcts.search(&game);
+        let visits = mcts.search(&game)?;
         // Defensive: search only returns empty for terminal positions, which the
         // while condition above already excludes. This branch is unreachable per
         // the engine invariant and exists purely as a safety guard.
@@ -59,7 +62,7 @@ pub fn play_game(
     }
 
     let result = game.terminal_result();
-    pending
+    Ok(pending
         .into_iter()
         .map(|p| {
             let value = match result {
@@ -68,7 +71,7 @@ pub fn play_game(
             };
             Sample { planes: p.planes, policy: p.policy, value, legal_mask: p.legal_mask }
         })
-        .collect()
+        .collect())
 }
 
 /// Selects a move from visit counts: proportional sampling when `explore` is
@@ -116,7 +119,8 @@ mod tests {
     fn play_game_produces_well_formed_samples() {
         let mut mcts = fixture_mcts();
         let mut rng = Pcg64::seed_from_u64(42);
-        let samples = play_game(&mut mcts, RuleConfig::default(), 4, &mut rng);
+        let samples = play_game(&mut mcts, RuleConfig::default(), 4, &mut rng)
+            .expect("play_game succeeds");
 
         assert!(!samples.is_empty(), "a game produces at least one sample");
         for s in &samples {
