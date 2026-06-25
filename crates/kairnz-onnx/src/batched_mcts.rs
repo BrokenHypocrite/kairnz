@@ -144,12 +144,11 @@ impl<'a> BatchedAzMcts<'a> {
             .collect())
     }
 
-    /// Expands the root via a single-element batch and applies Dirichlet noise,
-    /// matching how `AzMcts` evaluates and noises leaf 0. The root value is
-    /// discarded (it is never backed up in the sequential engine either, since
-    /// expansion happens within a simulation that also backs the value up; here
-    /// the root's first visit is recorded so the loop's `visits` accounting
-    /// stays in lockstep with `AzMcts`).
+    /// Expands the root via a single-element batch, applies Dirichlet noise,
+    /// and records the root's first visit and value -- matching the sequential
+    /// `AzMcts` semantics, where leaf 0 is expanded and backed up inside the
+    /// first simulation. Recording that visit here keeps the loop's `visits`
+    /// accounting in lockstep with `AzMcts`.
     fn expand_root(&mut self, arena: &mut Vec<Node>) -> ort::Result<()> {
         let rep = arena[0].game.repetition_count();
         let planes = encode_planes(&arena[0].game.pos, rep);

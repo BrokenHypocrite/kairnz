@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use kairnz_core::position::Position;
-use kairnz_encode::{encode_planes, NUM_PLANES, POLICY_SIZE};
+use kairnz_encode::{encode_planes, CH_REPETITION, NUM_PLANES, POLICY_SIZE, REPETITION_NORM};
 use ndarray::Array4;
 use ort::execution_providers::{CUDAExecutionProvider, ExecutionProvider};
 use ort::session::Session;
@@ -16,12 +16,6 @@ const BOARD: usize = 9;
 
 /// Flat length of one encoded position: NUM_PLANES channels * 9*9 cells.
 pub(crate) const PLANE_LEN: usize = NUM_PLANES * BOARD * BOARD;
-
-/// Channel index for the repetition-count plane (channel 13, the last channel).
-const CH_REPETITION: usize = 13;
-
-/// Normalizer for the repetition plane (must match kairnz-encode's REPETITION_NORM).
-const REPETITION_NORM: f32 = 3.0;
 
 /// An ONNX model session that evaluates Kairnz positions.
 pub struct OnnxEvaluator {

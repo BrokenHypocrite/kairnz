@@ -13,7 +13,8 @@ const AP_NORM: f32 = 2.0;
 /// capture-heavy games, so the reserve planes are clamped to [0, 1].
 const RESERVE_NORM: f32 = 18.0;
 /// Normalizer for the repetition plane (default repetition-fold threshold).
-const REPETITION_NORM: f32 = 3.0;
+/// Exported so callers that overwrite this channel can stay in sync.
+pub const REPETITION_NORM: f32 = 3.0;
 
 /// Channel offset for the first "my Stone" plane.
 const CH_MY_STONE: usize = 0;
@@ -34,7 +35,8 @@ const CH_CAPTURE_LOCKED: usize = 11;
 /// Channel for the keystone-moved plane.
 const CH_KEYSTONE_MOVED: usize = 12;
 /// Channel for the repetition-count plane.
-const CH_REPETITION: usize = 13;
+/// Exported so callers that overwrite this channel can stay in sync.
+pub const CH_REPETITION: usize = 13;
 
 /// Encodes `pos` into `NUM_PLANES * BOARD_CELLS` floats in channel-major order.
 ///
