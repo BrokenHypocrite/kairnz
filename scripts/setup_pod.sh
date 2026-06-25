@@ -37,13 +37,21 @@ if [ ! -x "$UV_DIR/uv" ]; then
     curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$UV_DIR" sh
 fi
 
-# A sourceable env file: toolchains from the volume + cuDNN on LD_LIBRARY_PATH so the
-# Rust ONNX Runtime CUDA provider loads (Linux uses LD_LIBRARY_PATH, not PATH).
+# A sourceable env file. Three things the ONNX Runtime CUDA provider needs on Linux:
+#   1. cuDNN + CUDA libs on LD_LIBRARY_PATH (Linux uses LD_LIBRARY_PATH, not PATH).
+#   2. target/release on LD_LIBRARY_PATH so ORT can dlopen libonnxruntime_providers_shared.so
+#      (its broker lib, loaded by bare name; the executable's own dir is NOT searched).
+#   3. A persistent, large CUDA JIT cache: the bundled provider ships no sm_90 (Hopper)
+#      cubin and cuDNN 9 runtime-compiles conv engines, a multi-minute first-run cost.
+#      The compiled cache is ~260MB (over the 256MB default), so raise the cap and put it
+#      on the volume so the compile happens once, not every run or pod restart.
 cat > /workspace/env.sh <<'ENVEOF'
 export CARGO_HOME="/workspace/.cargo"
 export RUSTUP_HOME="/workspace/.rustup"
 export PATH="/workspace/.cargo/bin:/workspace/.uv-bin:$PATH"
-export LD_LIBRARY_PATH="$(echo /workspace/kairnz/train/.venv/lib/python*/site-packages/nvidia/*/lib /workspace/kairnz/train/.venv/lib/python*/site-packages/torch/lib | tr ' ' ':'):${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="/workspace/kairnz/target/release:$(echo /workspace/kairnz/train/.venv/lib/python*/site-packages/nvidia/*/lib /workspace/kairnz/train/.venv/lib/python*/site-packages/torch/lib | tr ' ' ':'):${LD_LIBRARY_PATH:-}"
+export CUDA_CACHE_PATH="/workspace/.nv_cache"
+export CUDA_CACHE_MAXSIZE="2147483648"
 ENVEOF
 
 # shellcheck disable=SC1091
