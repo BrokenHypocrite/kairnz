@@ -447,6 +447,11 @@
     --inspect-dot: #7c3aed;
     --inspect-dot-stroke: #5b21b6;
     --last-move: rgba(210, 160, 30, 0.35);
+    --panel-bg: #faf7f2;
+    --panel-divider: #e0d8ce;
+    --text-muted: #444;
+    --input-border: #ccc;
+    --input-bg: #fff;
   }
 
   main {

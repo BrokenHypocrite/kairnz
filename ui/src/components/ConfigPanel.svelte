@@ -184,7 +184,7 @@
     padding: 0;
     border: 1px solid var(--board-border);
     border-radius: 4px;
-    background: #faf7f2;
+    background: var(--panel-bg);
     min-width: 180px;
   }
 
@@ -239,7 +239,7 @@
     flex-direction: column;
     gap: 0.6rem;
     padding: 0 1rem 1rem;
-    border-top: 1px solid #e0d8ce;
+    border-top: 1px solid var(--panel-divider);
   }
 
   .field {
@@ -256,16 +256,16 @@
 
   label {
     font-size: 0.85rem;
-    color: #444;
+    color: var(--text-muted);
   }
 
   select,
   input[type='number'] {
     padding: 0.25rem 0.4rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--input-border);
     border-radius: 3px;
     font-size: 0.9rem;
-    background: #fff;
+    background: var(--input-bg);
   }
 
   input[type='number'] {
@@ -275,7 +275,7 @@
   .btn-new-game {
     padding: 0.35rem 0.75rem;
     background: var(--board-border);
-    color: #fff;
+    color: var(--input-bg);
     border: none;
     border-radius: 3px;
     font-size: 0.85rem;
@@ -295,7 +295,7 @@
 
   .section-divider {
     height: 1px;
-    background: #e0d8ce;
+    background: var(--panel-divider);
     margin: 0.2rem 0;
   }
 
@@ -315,7 +315,7 @@
 
   .field-legend {
     font-size: 0.85rem;
-    color: #444;
+    color: var(--text-muted);
     padding: 0;
     margin-bottom: 0.2rem;
   }
@@ -330,16 +330,16 @@
     align-items: center;
     gap: 0.25rem;
     font-size: 0.85rem;
-    color: #444;
+    color: var(--text-muted);
     cursor: pointer;
   }
 
   input[type='text'] {
     padding: 0.25rem 0.4rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--input-border);
     border-radius: 3px;
     font-size: 0.85rem;
-    background: #fff;
+    background: var(--input-bg);
     width: 100%;
     box-sizing: border-box;
   }
