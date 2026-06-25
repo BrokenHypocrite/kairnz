@@ -52,6 +52,24 @@ pub fn undo(id: GameId, store: State<GameStore>) -> Result<GameView, String> {
     store.undo(id)
 }
 
+/// Asks the AI to choose and apply a move, returning the updated state.
+///
+/// `model` is the filesystem path to the ONNX model file; `simulations` controls
+/// the MCTS search budget. The AI engine is lazily loaded and cached across calls.
+#[tauri::command]
+pub fn ai_move(
+    id: GameId,
+    model: String,
+    simulations: u32,
+    store: State<GameStore>,
+    ai: State<crate::ai::AiEngine>,
+) -> Result<ApplyResult, String> {
+    // Clone the game (brief lock), search lock-free, then apply.
+    let game = store.clone_game(id)?;
+    let action = ai.choose(&game, std::path::Path::new(&model), simulations)?;
+    store.apply_action(id, action)
+}
+
 /// Returns the geometric move targets for the piece at `from`, ignoring AP/turn rules.
 ///
 /// Returns an empty list if the square is empty.

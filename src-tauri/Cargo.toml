@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 kairnz-core = { path = "../crates/kairnz-core" }
+kairnz-onnx = { path = "../crates/kairnz-onnx" }
+kairnz-policy = { path = "../crates/kairnz-policy" }
 tauri = { version = "2", features = [] }
 serde = { workspace = true }
 serde_json = { workspace = true }

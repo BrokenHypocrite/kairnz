@@ -62,6 +62,15 @@ impl GameStore {
         Ok(view_of(&entry.game))
     }
 
+    /// Returns a clone of the game with `id`, or an error if it does not exist.
+    pub fn clone_game(&self, id: GameId) -> Result<Game, String> {
+        let games = self.games.lock().map_err(|_| "game store lock poisoned".to_string())?;
+        games
+            .get(&id)
+            .map(|entry| entry.game.clone())
+            .ok_or_else(|| "no such game".to_string())
+    }
+
     /// Returns the legal actions for the given game.
     ///
     /// When `from` is `Some(sq)`, only `Move` actions whose `from` field equals
