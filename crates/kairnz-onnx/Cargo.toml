@@ -7,8 +7,18 @@ edition = "2021"
 kairnz-core = { path = "../kairnz-core" }
 kairnz-encode = { path = "../kairnz-encode" }
 kairnz-policy = { path = "../kairnz-policy" }
-ort = { version = "=2.0.0-rc.10", features = ["ndarray", "load-dynamic"] }
 ndarray = "0.16"
 rand = "0.8"
 rand_pcg = "0.3"
 rand_distr = "0.4"
+
+# ONNX Runtime execution provider differs by target. Linux (the rented GPU pod)
+# uses load-dynamic so it can point ORT_DYLIB_PATH at a Hopper-capable
+# onnxruntime-gpu wheel (the bundled rc.10 binary lacks sm_90). Windows/local
+# uses the bundled `cuda` feature, which ships its own onnxruntime and works on
+# the dev 4080. See the onnx-cuda-inference memory.
+[target.'cfg(target_os = "linux")'.dependencies]
+ort = { version = "=2.0.0-rc.10", features = ["ndarray", "load-dynamic"] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+ort = { version = "=2.0.0-rc.10", features = ["ndarray", "cuda"] }
